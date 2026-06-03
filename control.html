@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>ComfyUI コントロール</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: #1e1e2e;
+      color: #cdd6f4;
+      font-family: "Helvetica Neue", sans-serif;
+      overflow: hidden;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 16px;
+      gap: 6px;
+    }
+    .main-layout {
+      display: flex;
+      gap: 16px;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* 辞書パネル */
+    .dict-panel {
+      flex: 0 0 0px;
+      overflow: hidden;
+      transition: flex-basis 0.3s ease;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+    .dict-panel.open { flex: 0 0 300px; }
+    .dict-inner {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: 100%;
+      min-height: 0;
+      border-right: 1px solid #313244;
+      padding-right: 16px;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      pointer-events: none;
+    }
+    .dict-panel.open .dict-inner {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .dict-title {
+      font-size: 12px;
+      font-weight: bold;
+      color: #89b4fa;
+      flex: 0 0 auto;
+    }
+    .dict-search {
+      width: 100%;
+      background: #2a2a3e;
+      color: #cdd6f4;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 12px;
+      outline: none;
+      flex: 0 0 auto;
+    }
+    .dict-search:focus { border-color: #89b4fa; }
+    .dict-result {
+      background: #2a2a3e;
+      border: 1px solid #45475a;
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 11px;
+      min-height: 60px;
+      color: #a6e3a1;
+      line-height: 1.6;
+      word-break: break-all;
+      flex: 0 0 auto;
+    }
+    .dict-result.empty { color: #45475a; }
+    .dict-btn-append {
+      padding: 8px;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      background: #a6e3a1;
+      color: #1e1e2e;
+      flex: 0 0 auto;
+      transition: opacity 0.15s;
+    }
+    .dict-btn-append:hover { opacity: 0.85; }
+    .dict-list {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+    }
+    .dict-item .di-ja { word-break: break-word; }
+    .dict-item {
+      background: #2a2a3e;
+      border: 1px solid #313244;
+      border-radius: 6px;
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .dict-item:hover { border-color: #89b4fa; }
+    .dict-item .di-ja { font-size: 12px; font-weight: bold; color: #89b4fa; }
+    .dict-item .di-en { font-size: 10px; color: #6c7086; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* プロンプト・ボタン */
+    .left {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-width: 0;
+    }
+    .right {
+      flex: 0 0 380px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    textarea {
+      width: 100%;
+      flex: 1;
+      background: #2a2a3e;
+      color: #cdd6f4;
+      border: 1px solid #45475a;
+      border-radius: 8px;
+      padding: 12px;
+      font-size: 13px;
+      resize: none;
+      outline: none;
+      line-height: 1.7;
+    }
+    textarea:focus { border-color: #89b4fa; }
+    .btn-row {
+      display: flex;
+      gap: 8px;
+      flex: 0 0 auto;
+    }
+    button {
+      flex: 1;
+      padding: 8px;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #btn-paste { background: #45475a; color: #cdd6f4; flex: 0 0 auto; padding: 10px 14px; }
+    #btn-dict  { background: #cba6f7; color: #1e1e2e; flex: 0 0 auto; padding: 10px 14px; }
+    #btn-inject { background: #89b4fa; color: #1e1e2e; }
+    #btn-generate { background: #a6e3a1; color: #1e1e2e; }
+    .status { font-size: 12px; min-height: 18px; color: #a6e3a1; flex: 0 0 auto; }
+    .status.error { color: #f38ba8; }
+
+    .image-wrap {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 0;
+    }
+    .image-area {
+      background: #2a2a3e;
+      border-radius: 8px;
+      border: 1px solid #313244;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      aspect-ratio: 944 / 2048;
+      max-height: 100%;
+    }
+    .image-area img { width: 100%; height: 100%; object-fit: contain; }
+    #result-image { display: none; }
+    #result-image[style*="display: block"] { display: block !important; }
+    .image-placeholder { color: #45475a; font-size: 13px; text-align: center; line-height: 2; }
+    .spinner {
+      display: none;
+      width: 36px; height: 36px;
+      border: 4px solid #45475a;
+      border-top-color: #89b4fa;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      position: absolute;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .suggest-box {
+      position: absolute;
+      background: #2a2a3e;
+      border: 1px solid #89b4fa;
+      border-radius: 6px;
+      max-height: 180px;
+      overflow-y: auto;
+      z-index: 1000;
+      left: 0;
+      right: 0;
+      width: auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .suggest-item {
+      padding: 7px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      color: #cdd6f4;
+    }
+    .suggest-item:hover, .suggest-item.active { background: #45475a; }
+    #btn-folder {
+      display: block; text-align: center; padding: 10px;
+      background: #313244; color: #cdd6f4; border-radius: 8px;
+      text-decoration: none; font-size: 13px; font-weight: bold;
+      transition: opacity 0.15s;
+    }
+    #btn-folder:hover { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="main-layout">
+
+      <!-- 辞書パネル（折りたたみ） -->
+      <div class="dict-panel open" id="dict-panel">
+        <div class="dict-inner">
+          <div class="dict-title">📚 辞書 / 📝 翻訳</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <button id="tab-dict" style="flex:1;padding:6px;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">📚 辞書</button>
+            <button id="tab-settings" style="flex:1;padding:6px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:11px;">📝 翻訳</button>
+          </div>
+          
+          <!-- 辞書セクション -->
+          <div id="dict-section" style="flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;">
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <input class="dict-search" id="dict-search" placeholder="キーワードを検索..." style="flex:1;" />
+            <button id="btn-dict-clear" style="flex:0 0 auto;padding:6px 10px;background:#45475a;color:#cdd6f4;border:none;border-radius:6px;cursor:pointer;font-size:12px;">✕</button>
+            </div>
+
+          <div class="dict-result empty" id="dict-result" style="min-height:60px;max-height:160px;font-size:13px;padding:10px;overflow-y:auto;display:flex;flex-direction:column;flex:0 0 auto;">キーワードを入力してください</div>
+          <div style="display:flex;gap:6px;margin-bottom:6px;">
+            <button class="dict-btn-append" id="btn-dict-append" style="flex:1;">✍️ プロンプトに記入</button>
+            <button class="dict-btn-append" id="btn-ai-suggest" style="flex:1;background:#a6a1de;">🤖 AI推奨</button>
+          </div>
+          <button class="dict-btn-append" id="btn-dict-copy" style="background: #45475a; color: #cdd6f4;">📋 コピー</button>
+          <div class="dict-list" id="dict-list"></div>
+          </div>
+
+          <!-- 設定セクション（翻訳を最大化） -->
+          <div id="settings-section" style="display:none;flex:1;min-height:0;">
+          <div style="margin-top:0;padding-top:0;border-top:none;display:flex;flex-direction:column;height:100%;gap:4px;">
+            <!-- 翻訳機能 -->
+            <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
+              <div style="font-size:12px;color:#89b4fa;font-weight:bold;margin-bottom:4px;">📝 日本語→英語翻訳</div>
+              <textarea id="translate-input" placeholder="日本語を入力..." style="flex:1;padding:10px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:14px;resize:none;margin-bottom:4px;min-height:0;"></textarea>
+              <button id="btn-translate" style="flex:0 !important;width:100%;padding:8px !important;background:#a6e3a1;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-bottom:4px;font-weight:bold;">翻訳</button>
+              <textarea id="translate-output" placeholder="英訳結果..." style="flex:1;padding:10px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:14px;resize:none;margin-bottom:4px;min-height:0;" readonly></textarea>
+              <button id="btn-translate-insert" style="flex:0 !important;width:100%;padding:8px !important;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">✍️ プロンプトに記入</button>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- プロンプト・ボタン -->
+      <!-- プロンプト・ボタン -->
+      <div class="left">
+        <div style="display:flex;flex-direction:column;flex:1;min-height:0;position:relative;">
+          <textarea id="prompt-input" placeholder="プロンプトを入力..."></textarea>
+          <div class="suggest-box" id="suggest-box" style="display:none;top:0;left:0;"></div>
+        </div>
+        <div class="btn-row">
+          <button id="btn-dict">📚</button>
+          <button id="btn-paste">📋</button>
+          <button id="btn-inject">ノードに反映</button>
+          <button id="btn-generate">▶ 生成</button>
+        </div>
+        <div class="status" id="status"></div>
+        <div class="btn-row">
+          <a href="smb://100.64.162.109/Text2Img" id="btn-folder">📁 Text2Img フォルダを開く</a>
+        </div>
+      </div>
+
+      <!-- 画像 -->
+      <div class="right" style="min-height:0;height:100%;">
+        <div class="image-wrap">
+          <div class="image-area" id="image-area">
+            <div class="spinner" id="spinner"></div>
+            <div class="image-placeholder" id="placeholder">ここに<br>生成画像が<br>表示されます</div>
+            <img id="result-image" alt="生成画像">
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <script src="control.js"></script>
+</body>
+</html>
