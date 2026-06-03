@@ -31,6 +31,8 @@ ComfyUI のプロンプト入力と画像生成をブラウザの専用タブで
 
 また [`background.js`](background.js) と [`popup.js`](popup.js) 内の `COMFYUI_BASE` も同じ URL に合わせてください。
 
+> **注意：** デフォルトのソースコードには特定の IP アドレスがハードコードされています。このまま公開リポジトリにプッシュすると IP アドレスが外部に漏れます。上記の URL を自分の環境に書き換えてからコミットしてください。
+
 ## 動作環境
 
 - Google Chrome (Manifest V3 対応)
