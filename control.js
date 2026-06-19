@@ -780,11 +780,12 @@ document.getElementById("btn-send-db").addEventListener("click", async () => {
 
 
 
-// AI推奨ボタン（辞書パネル内）：辞書検索の単語を英語に翻訳し、最適な1語だけ出力
+// AI推奨ボタン（辞書パネル内）：辞書検索の単語を英語に翻訳して出力
+// カンマ区切りで複数キーワードを入れると、それぞれを英語に変換して並べる
 document.getElementById("btn-ai-suggest").addEventListener("click", () => {
   const word = (document.getElementById("dict-search")?.value || "").trim();
   if (!word) {
-    alert("辞書検索の欄に単語を入力してください");
+    alert("辞書検索の欄に単語を入力してください（カンマ区切りで複数可）");
     return;
   }
 
@@ -799,15 +800,17 @@ document.getElementById("btn-ai-suggest").addEventListener("click", () => {
     model: llmModel,
     temperature: 0.2,
     maxTokens: 1536,
-    system: "You are a Japanese-to-English dictionary. The user gives a single Japanese word or short phrase. Output ONLY the single most appropriate English word (or shortest natural term) that best matches it, suitable for use as a word when composing an English sentence. No alternatives, no part-of-speech, no notes, no punctuation, no quotation marks — just the one word/term.",
+    system: "You are a Japanese-to-English dictionary for image-generation prompts. The user gives one or more Japanese words/phrases separated by commas. For EACH input item, output the single most appropriate English word or shortest natural term. Output ONLY the English terms, separated by ', ', in the same order and same count as the input. No alternatives, no part-of-speech, no notes, no numbering, no quotation marks.",
     prompt: word
   }, (response) => {
     if (response && response.success && response.response) {
-      // <think>除去 → 1語だけに整える
+      // <think>除去 → 改行/カンマ区切りを正規化して英語語句のリストにする
       let out = cleanTranslation(response.response);
-      out = out.split("\n").map(s => s.trim()).filter(Boolean)[0] || "";
-      out = out.replace(/^["'`]|["'`.,;:]+$/g, "").trim();
-      out = out.split(/[,/|]/)[0].trim(); // カンマ等で複数返ってきたら先頭
+      const terms = out
+        .split(/[\n,]/)
+        .map(s => s.replace(/^\s*\d+[.)]\s*/, "").replace(/^["'`]|["'`.;:]+$/g, "").trim())
+        .filter(Boolean);
+      out = terms.join(", ");
       currentResult = out;
       const resultEl = document.getElementById("dict-result");
       resultEl.textContent = out;
