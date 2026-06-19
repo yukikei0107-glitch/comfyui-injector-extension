@@ -1,5 +1,21 @@
 const STORAGE_KEY = "prompt_dict";
 
+// 画面下に一瞬出る通知（トースト）
+let _toastTimer = null;
+function toast(msg, color = "#a6e3a1") {
+  const el = document.getElementById("toast");
+  if (!el) return;
+  el.textContent = msg;
+  el.style.background = color;
+  el.style.opacity = "1";
+  el.style.transform = "translateX(-50%) translateY(0)";
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => {
+    el.style.opacity = "0";
+    el.style.transform = "translateX(-50%) translateY(20px)";
+  }, 3500);
+}
+
 // 辞書件数更新
 function updateDictCount(count) {
   const el = document.getElementById("dict-count");
@@ -18,9 +34,123 @@ async function loadDict() {
 // データ保存
 async function saveDict(dict) {
   return new Promise(resolve => {
-    chrome.storage.local.set({ [STORAGE_KEY]: dict }, resolve);
+    chrome.storage.local.set({ [STORAGE_KEY]: dict }, () => {
+      // 自動保存先が設定されていれば実ファイルにも上書き（best-effort）
+      autoSaveToFile(dict);
+      resolve();
+    });
   });
 }
+
+// ===== 自動ファイル保存（File System Access API） =====
+// 選んだファイルへの参照(handle)を IndexedDB に保存して、再起動後も使えるようにする
+let autoSaveHandle = null;
+
+function idb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("dict_autosave_db", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("kv");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function idbSet(key, val) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("kv", "readwrite");
+    tx.objectStore("kv").put(val, key);
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+async function idbGet(key) {
+  const db = await idb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("kv", "readonly");
+    const r = tx.objectStore("kv").get(key);
+    r.onsuccess = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+  });
+}
+
+function setAutosaveStatus(msg, color) {
+  const el = document.getElementById("autosave-status");
+  if (el) { el.textContent = msg; el.style.color = color || "#6c7086"; }
+  const offBtn = document.getElementById("btn-autosave-off");
+  if (offBtn) offBtn.style.display = autoSaveHandle ? "inline-block" : "none";
+}
+
+// 実ファイルへ書き込む（バックアップ形式：辞書＋タグ候補＋日時。そのまま「復元」で戻せる）
+async function autoSaveToFile(dict) {
+  if (!autoSaveHandle) return;
+  try {
+    let perm = await autoSaveHandle.queryPermission({ mode: "readwrite" });
+    if (perm !== "granted") {
+      // ユーザー操作（クリック等）の流れの中なら許可を要求できる
+      perm = await autoSaveHandle.requestPermission({ mode: "readwrite" });
+      if (perm !== "granted") { setAutosaveStatus("⚠️ 書き込み権限がありません（保存先を再設定してください）", "#f9e2af"); return; }
+    }
+    // タグ候補も取得してバックアップ形式で書き出す（btn-backupと同じ構造）
+    const tags = await new Promise(resolve => {
+      chrome.storage.local.get("tag_suggestions", d => resolve(d["tag_suggestions"] || []));
+    });
+    const backup = {
+      version: "1.0",
+      date: new Date().toISOString(),
+      prompt_dict: dict,
+      tag_suggestions: tags
+    };
+    const w = await autoSaveHandle.createWritable();
+    await w.write(JSON.stringify(backup, null, 2));
+    await w.close();
+    const t = new Date().toLocaleTimeString();
+    setAutosaveStatus(`✅ ${autoSaveHandle.name} に保存 (${t})`, "#a6e3a1");
+  } catch (e) {
+    setAutosaveStatus("⚠️ 保存に失敗: " + e.message, "#f38ba8");
+  }
+}
+
+// 保存先ファイルを選ぶ
+async function chooseAutosaveFile() {
+  if (!window.showSaveFilePicker) {
+    alert("このブラウザはファイル自動保存に未対応です（Chrome系で利用できます）");
+    return;
+  }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: "comfyui_dict_autosave.json",
+      types: [{ description: "JSON", accept: { "application/json": [".json"] } }]
+    });
+    autoSaveHandle = handle;
+    await idbSet("handle", handle);
+    setAutosaveStatus(`設定完了：${handle.name}（以後、追加・編集で自動上書き）`, "#a6e3a1");
+    // 設定直後に現在の辞書を書き出しておく
+    await autoSaveToFile(await loadDict());
+  } catch (e) {
+    if (e.name !== "AbortError") alert("保存先の設定に失敗しました: " + e.message);
+  }
+}
+
+// 起動時：保存済みの handle を復元
+(async () => {
+  try {
+    const h = await idbGet("handle");
+    if (h) {
+      autoSaveHandle = h;
+      const perm = await h.queryPermission({ mode: "readwrite" });
+      if (perm === "granted") setAutosaveStatus(`✅ 自動保存ON：${h.name}`, "#a6e3a1");
+      else setAutosaveStatus(`🔒 自動保存：${h.name}（最初の追加時に権限確認が出ます）`, "#f9e2af");
+    }
+  } catch (e) {}
+})();
+
+document.getElementById("btn-autosave-set").addEventListener("click", chooseAutosaveFile);
+document.getElementById("btn-autosave-off").addEventListener("click", async () => {
+  autoSaveHandle = null;
+  await idbSet("handle", null);
+  setAutosaveStatus("未設定（追加してもファイルには書き込みません）", "#6c7086");
+  toast("自動保存を解除しました", "#f9e2af");
+});
 
 // 辞書リスト描画
 async function renderList(filter = "") {
@@ -132,6 +262,7 @@ async function addEntry() {
   document.getElementById("add-ja").value = "";
   document.getElementById("add-en").value = "";
   await renderList(document.getElementById("filter-input").value);
+  toast(autoSaveHandle ? `✅ 保存しました（ファイルにも書き込み）` : `✅ 保存しました`);
 }
 
 // イベント
@@ -556,6 +687,57 @@ document.getElementById("restore-file-input").addEventListener("change", async (
   await renderList();
 })();
 
+// ===== AIバックエンド設定（Ollama / LM Studio 切り替え） =====
+const LLM_DEFAULTS = {
+  ollama:   { url: "http://127.0.0.1:11434", model: "mistral:latest" },
+  lmstudio: { url: "http://127.0.0.1:1234",  model: "magnum-v4-12b-mlx" }
+};
+
+const backendEl = document.getElementById("llm-backend");
+const urlEl = document.getElementById("llm-server-url");
+const modelEl = document.getElementById("llm-model");
+
+// 現在の設定をフィールドから取得
+function getLlmConfig() {
+  return {
+    backend: backendEl.value || "ollama",
+    serverUrl: urlEl.value.trim() || LLM_DEFAULTS[backendEl.value || "ollama"].url,
+    model: modelEl.value.trim() || LLM_DEFAULTS[backendEl.value || "ollama"].model
+  };
+}
+
+// 設定を保存
+function saveLlmConfig() {
+  chrome.storage.local.set({
+    llm_backend: backendEl.value,
+    llm_server_url: urlEl.value.trim(),
+    llm_model: modelEl.value.trim()
+  });
+}
+
+// 起動時：保存済み設定を反映
+chrome.storage.local.get(["llm_backend", "llm_server_url", "llm_model"], (d) => {
+  const backend = d.llm_backend || "ollama";
+  backendEl.value = backend;
+  urlEl.value = d.llm_server_url || LLM_DEFAULTS[backend].url;
+  modelEl.value = d.llm_model || LLM_DEFAULTS[backend].model;
+});
+
+// バックエンド切り替え：URL/モデルが空 or 他バックエンドの既定値ならその既定値に差し替え
+backendEl.addEventListener("change", () => {
+  const backend = backendEl.value;
+  const other = backend === "ollama" ? "lmstudio" : "ollama";
+  if (!urlEl.value.trim() || urlEl.value.trim() === LLM_DEFAULTS[other].url) {
+    urlEl.value = LLM_DEFAULTS[backend].url;
+  }
+  if (!modelEl.value.trim() || modelEl.value.trim() === LLM_DEFAULTS[other].model) {
+    modelEl.value = LLM_DEFAULTS[backend].model;
+  }
+  saveLlmConfig();
+});
+urlEl.addEventListener("change", saveLlmConfig);
+modelEl.addEventListener("change", saveLlmConfig);
+
 // AI推奨ボタン（dict.html）
 document.getElementById("btn-ai-suggest-dict").addEventListener("click", async () => {
   const input = document.getElementById("search-input").value.trim();
@@ -568,46 +750,51 @@ document.getElementById("btn-ai-suggest-dict").addEventListener("click", async (
   btn.disabled = true;
   btn.textContent = "推奨中...";
 
-  // ローカルストレージからサーバーURL を取得
-  chrome.storage.local.get(["llm_server_url"], (data) => {
-    const serverUrl = data.llm_server_url || "http://localhost:12345";
-    
-    chrome.runtime.sendMessage({
-      type: "ollama-generate",
-      serverUrl: serverUrl,
-      model: "mistral",
-      prompt: `このプロンプトに関連する5個の英語タグを提案してください。カンマ区切りで返してください。\n\nプロンプト: ${input}`
-    }, (response) => {
-      if (response && response.success && response.response) {
-        const tags = response.response.trim().split(",").map(t => t.trim()).filter(t => t).slice(0, 5);
-        const text = tags.join(", ");
-        showResult(text);
-        addHistory(input, text);
-      } else {
-        alert("タグ推奨に失敗しました。Ollamaが起動していますか?");
-      }
-      btn.disabled = false;
-      btn.textContent = "🤖 AI推奨";
-    });
+  const cfg = getLlmConfig();
+  chrome.runtime.sendMessage({
+    type: "ollama-generate",
+    backend: cfg.backend,
+    serverUrl: cfg.serverUrl,
+    model: cfg.model,
+    temperature: 0.5,
+    maxTokens: 1536,
+    system: "You suggest image-generation prompt tags. Given the user's keyword, output exactly 5 relevant English tags (Danbooru/booru-style short phrases). Return ONLY the 5 tags as a single comma-separated line, with no numbering, notes, or explanations.",
+    prompt: input
+  }, (response) => {
+    if (response && response.success && response.response) {
+      // <think>除去
+      let raw = response.response.replace(/<think>[\s\S]*?<\/think>/gi, "");
+      if (/<\/think>/i.test(raw)) raw = raw.split(/<\/think>/i).pop();
+      raw = raw.replace(/<\/?think>/gi, "").trim();
+      const tags = raw.split(",").map(t => t.trim()).filter(t => t).slice(0, 5);
+      const text = tags.join(", ");
+      showResult(text);
+      addHistory(input, text);
+    } else {
+      alert("タグ推奨に失敗しました。\n" + (response?.error || "サーバーが起動していますか?"));
+    }
+    btn.disabled = false;
+    btn.textContent = "🤖 AI推奨";
   });
 });
 
 
-// Ollama接続確認（dict.html）
+// 接続確認（dict.html）
 document.getElementById("btn-llm-test").addEventListener("click", () => {
-  const serverUrl = document.getElementById("llm-server-url").value || "http://localhost:12345";
+  const cfg = getLlmConfig();
   const btn = document.getElementById("btn-llm-test");
   const status = document.getElementById("llm-status");
-  
+
   btn.disabled = true;
   btn.textContent = "確認中...";
-  
+
   chrome.runtime.sendMessage({
     type: "ollama-test",
-    serverUrl: serverUrl
+    backend: cfg.backend,
+    serverUrl: cfg.serverUrl
   }, (response) => {
     if (response && response.success) {
-      status.textContent = "✅ 接続OK";
+      status.textContent = `✅ 接続OK (${cfg.backend})`;
       status.style.color = "#a6e3a1";
     } else {
       status.textContent = "❌ 接続失敗";
@@ -616,12 +803,6 @@ document.getElementById("btn-llm-test").addEventListener("click", () => {
     btn.disabled = false;
     btn.textContent = "確認";
   });
-});
-
-// llm-server-urlの入力変更を保存
-document.getElementById("llm-server-url").addEventListener("change", (e) => {
-  const url = e.target.value || "http://localhost:12345";
-  chrome.storage.local.set({ "llm_server_url": url });
 });
 
 

@@ -226,13 +226,15 @@
       color: #cdd6f4;
     }
     .suggest-item:hover, .suggest-item.active { background: #45475a; }
-    #btn-folder {
+    #btn-folder, #btn-folder-local {
+      flex: 1;
       display: block; text-align: center; padding: 10px;
       background: #313244; color: #cdd6f4; border-radius: 8px;
       text-decoration: none; font-size: 13px; font-weight: bold;
       transition: opacity 0.15s;
     }
-    #btn-folder:hover { opacity: 0.85; }
+    #btn-folder-local { background: #45475a; }
+    #btn-folder:hover, #btn-folder-local:hover { opacity: 0.85; }
   </style>
 </head>
 <body>
@@ -251,7 +253,7 @@
           <!-- 辞書セクション -->
           <div id="dict-section" style="flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;">
           <div style="display:flex;gap:6px;margin-bottom:6px;">
-            <input class="dict-search" id="dict-search" placeholder="キーワードを検索..." style="flex:1;" />
+            <input class="dict-search" id="dict-search" placeholder="キーワード（カンマ区切りで複数可）" style="flex:1;" />
             <button id="btn-dict-clear" style="flex:0 0 auto;padding:6px 10px;background:#45475a;color:#cdd6f4;border:none;border-radius:6px;cursor:pointer;font-size:12px;">✕</button>
             </div>
 
@@ -271,9 +273,16 @@
             <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
               <div style="font-size:12px;color:#89b4fa;font-weight:bold;margin-bottom:4px;">📝 日本語→英語翻訳</div>
               <textarea id="translate-input" placeholder="日本語を入力..." style="flex:1;padding:10px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:14px;resize:none;margin-bottom:4px;min-height:0;"></textarea>
-              <button id="btn-translate" style="flex:0 !important;width:100%;padding:8px !important;background:#a6e3a1;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;margin-bottom:4px;font-weight:bold;">翻訳</button>
-              <textarea id="translate-output" placeholder="英訳結果..." style="flex:1;padding:10px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:14px;resize:none;margin-bottom:4px;min-height:0;" readonly></textarea>
-              <button id="btn-translate-insert" style="flex:0 !important;width:100%;padding:8px !important;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">✍️ プロンプトに記入</button>
+              <div style="display:flex;gap:4px;margin-bottom:4px;">
+                <button id="btn-translate" style="flex:1;padding:8px !important;background:#a6e3a1;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">📝 翻訳</button>
+                <button id="btn-tagify" style="flex:1;padding:8px !important;background:#f9e2af;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">🏷 タグ変換</button>
+                <button id="btn-enhance" style="flex:1;padding:8px !important;background:#f5c2e7;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">✨ 詳細化</button>
+              </div>
+              <textarea id="translate-output" placeholder="英訳結果 / タグ結果..." style="flex:1;padding:10px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:14px;resize:none;margin-bottom:4px;min-height:0;" readonly></textarea>
+              <div style="display:flex;gap:4px;flex:0 0 auto;">
+                <button id="btn-translate-insert" style="flex:1;padding:8px !important;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">✍️ プロンプトに記入</button>
+                <button id="btn-send-db" title="日本語＋英語プロンプト＋表示中の画像を textpair_db に登録" style="flex:1;padding:8px !important;background:#fab387;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">📤 DBに登録</button>
+              </div>
             </div>
           </div>
           </div>
@@ -296,6 +305,7 @@
         <div class="status" id="status"></div>
         <div class="btn-row">
           <a href="smb://100.64.162.109/Text2Img" id="btn-folder">📁 Text2Img フォルダを開く</a>
+          <a href="#" id="btn-folder-local" data-path="/Users/yuki_kei/Desktop/４kリサイズ済/PNGリセット" title="クリックでパスをコピー（Finderで ⌘⇧G に貼り付け）">🖼 PNGリセット（パスをコピー）</a>
         </div>
       </div>
 

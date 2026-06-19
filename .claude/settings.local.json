@@ -1,10 +1,29 @@
 {
   "permissions": {
     "allow": [
-      "Bash(gh auth *)",
-      "Bash(git init *)",
+      "Bash(command -v ollama)",
+      "Bash(curl -s -m 3 http://127.0.0.1:11434/api/tags)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('稼働中。モデル:', [m['name'] for m in d.get\\('models',[]\\)]\\)\")",
+      "Bash(timeout 200 python3 -c ' *)",
+      "Bash(python3 -c ' *)",
+      "Bash(curl -s -m 3 http://127.0.0.1:1234/v1/models)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('LM Studio稼働中。モデル:', [m['id'] for m in d.get\\('data',[]\\)]\\)\")",
+      "Read(//Applications/**)",
+      "Bash(python3 -)",
+      "Bash(python3 -W error::SyntaxWarning -c \"import server; print\\('構文OK'\\)\")",
+      "Bash(python3 -W error::SyntaxWarning -c ' *)",
+      "Bash(python3 -W error::SyntaxWarning -c \"import server, tagger; print\\('構文OK'\\)\")",
+      "Bash(python3 -W error::SyntaxWarning -c \"import tagger,server; print\\('構文OK'\\)\")",
+      "Read(//private/tmp/**)",
+      "Bash(timeout 300 python3 vltest.py)",
+      "Bash(python3 vltest.py)",
+      "Bash(python3 -W error::SyntaxWarning -c \"import server,tagger; print\\('構文OK'\\)\")",
+      "Bash(sed -n \"/def list_untagged/,/return/p\" store.py)",
+      "Bash(pmset -g therm)",
+      "Bash(ps -Ao %cpu,comm -r)",
+      "Bash(git restore *)",
       "Bash(git add *)",
-      "Bash(git commit *)"
+      "Bash(git commit -m ' *)"
     ]
   }
 }

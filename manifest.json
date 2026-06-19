@@ -13,7 +13,9 @@
     "storage"
   ],
   "host_permissions": [
-    "http://100.64.162.109:8188/*"
+    "http://100.64.162.109:8188/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*"
   ],
   "action": {},
   "background": {

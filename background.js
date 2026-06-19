@@ -237,38 +237,89 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log("Message received:", request);
   
   if (request.type === "ollama-generate") {
-    const serverUrl = request.serverUrl || "http://localhost:11434";
-    
-    fetch(serverUrl + "/api/generate", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: request.model || "mistral",
-        prompt: request.prompt,
+    const backend = request.backend || "ollama";
+    const serverUrl = request.serverUrl || (backend === "lmstudio" ? "http://127.0.0.1:1234" : "http://127.0.0.1:11434");
+    const model = request.model || (backend === "lmstudio" ? "local-model" : "mistral");
+
+    const system = request.system || "";
+
+    if (backend === "lmstudio") {
+      // LM Studio（OpenAI互換 /v1/chat/completions）：systemとuserを分離
+      const messages = [];
+      if (system) messages.push({ role: "system", content: system });
+      messages.push({ role: "user", content: request.prompt });
+      const lmBody = {
+        model: model,
+        messages: messages,
+        temperature: typeof request.temperature === "number" ? request.temperature : 0.3,
         stream: false
+      };
+      if (typeof request.maxTokens === "number") lmBody.max_tokens = request.maxTokens;
+      fetch(serverUrl + "/v1/chat/completions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(lmBody)
       })
-    })
-    .then(res => res.json())
-    .then(data => sendResponse({ success: true, response: data.response }))
-    .catch(err => sendResponse({ success: false, error: err.message }));
-    
+      .then(res => res.json())
+      .then(data => {
+        const msg = data?.choices?.[0]?.message || {};
+        const text = msg.content;
+        if (typeof text === "string" && text.trim()) {
+          sendResponse({ success: true, response: text });
+        } else if (msg.reasoning_content) {
+          // contentが空で思考だけ返るモデル（思考が止まらない）
+          sendResponse({ success: false, error: "このモデルは思考(reasoning)だけを返し、回答が空です。思考しないモデル（例: magnum-v4-12b-mlx）に変えてください。" });
+        } else {
+          sendResponse({ success: false, error: data?.error?.message || "応答が空です" });
+        }
+      })
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    } else {
+      // Ollama（/api/generate）：systemフィールドに指示を入れる
+      const body = { model: model, prompt: request.prompt, stream: false };
+      if (system) body.system = system;
+      const opts = {};
+      if (typeof request.temperature === "number") opts.temperature = request.temperature;
+      if (typeof request.maxTokens === "number") opts.num_predict = request.maxTokens;
+      if (Object.keys(opts).length) body.options = opts;
+      fetch(serverUrl + "/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body)
+      })
+      .then(res => res.text().then(txt => ({ ok: res.ok, status: res.status, txt })))
+      .then(({ ok, status, txt }) => {
+        if (!txt) {
+          sendResponse({ success: false, error: `Ollamaが空応答を返しました（HTTP ${status}, モデル: ${model}）。モデル名が正しいか確認してください` });
+          return;
+        }
+        let data;
+        try { data = JSON.parse(txt); }
+        catch (e) { sendResponse({ success: false, error: `応答がJSONではありません: ${txt.slice(0, 200)}` }); return; }
+        if (data.error) sendResponse({ success: false, error: `Ollama: ${data.error}（モデル: ${model}）` });
+        else if (typeof data.response === "string") sendResponse({ success: true, response: data.response });
+        else sendResponse({ success: false, error: "Ollamaからの応答が空です" });
+      })
+      .catch(err => sendResponse({ success: false, error: `接続失敗: ${err.message}（${serverUrl}）` }));
+    }
+
     return true; // async response
   }
-  
+
   if (request.type === "ollama-test") {
-    const serverUrl = request.serverUrl || "http://localhost:11434";
-    console.log("Testing connection to:", serverUrl);
-    
-    fetch(serverUrl + "/api/tags")
+    const backend = request.backend || "ollama";
+    const serverUrl = request.serverUrl || (backend === "lmstudio" ? "http://127.0.0.1:1234" : "http://127.0.0.1:11434");
+    // 接続確認：Ollamaは /api/tags、LM Studioは /v1/models
+    const testUrl = backend === "lmstudio" ? serverUrl + "/v1/models" : serverUrl + "/api/tags";
+    console.log("Testing connection to:", testUrl);
+
+    fetch(testUrl)
     .then(res => {
-      if (res.ok) {
-        sendResponse({ success: true });
-      } else {
-        sendResponse({ success: false, error: "Server error" });
-      }
+      if (res.ok) sendResponse({ success: true });
+      else sendResponse({ success: false, error: "Server error" });
     })
     .catch(err => sendResponse({ success: false, error: err.message }));
-    
+
     return true; // async response
   }
 });

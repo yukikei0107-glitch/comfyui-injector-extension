@@ -111,6 +111,13 @@
     .btn-success { background: #a6e3a1; color: #1e1e2e; }
     .btn-danger { background: #f38ba8; color: #1e1e2e; }
     .btn-small { padding: 6px 10px; font-size: 11px; }
+    /* インポート/エクスポートのコンパクトボタン */
+    .iebtn { padding: 7px 8px; border: none; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; background: #45475a; color: #cdd6f4; width: 100%; }
+    .iebtn:hover { opacity: 0.85; }
+    .iebtn-pink { background: #f38ba8; color: #1e1e2e; }
+    .iebtn-purple { background: #cba6f7; color: #1e1e2e; }
+    details > summary::-webkit-details-marker { display: none; }
+    details[open] > summary { color: #89b4fa; }
 
     label { font-size: 11px; color: #bac2de; }
 
@@ -201,14 +208,26 @@
 
     <!-- 左：変換 -->
     <div class="panel-left">
-      <!-- Ollamaタイトル -->
-      <div class="panel-title">⚙️ Ollama</div>
+      <!-- LLMタイトル -->
+      <div class="panel-title">⚙️ AIバックエンド</div>
 
-      <!-- Ollama設定 -->
+      <!-- LLM設定 -->
       <div style="margin-bottom:10px;padding:8px;background:#313244;border-radius:4px;">
+        <!-- バックエンド選択 -->
         <div style="display:flex;gap:4px;margin-bottom:4px;">
-          <input type="text" id="llm-server-url" placeholder="localhost:12345" value="http://localhost:12345" style="flex:1;padding:4px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:10px;" />
+          <select id="llm-backend" style="flex:1;padding:4px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:10px;">
+            <option value="ollama">Ollama</option>
+            <option value="lmstudio">LM Studio</option>
+          </select>
+        </div>
+        <!-- サーバーURL -->
+        <div style="display:flex;gap:4px;margin-bottom:4px;">
+          <input type="text" id="llm-server-url" placeholder="http://localhost:1234" value="http://localhost:12345" style="flex:1;padding:4px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:10px;" />
           <button id="btn-llm-test" style="flex:0 0 auto;padding:4px 8px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:9px;">確認</button>
+        </div>
+        <!-- モデル名 -->
+        <div style="display:flex;gap:4px;margin-bottom:4px;">
+          <input type="text" id="llm-model" placeholder="モデル名" value="" style="flex:1;padding:4px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:10px;" />
         </div>
         <div id="llm-status" style="font-size:9px;color:#6c7086;text-align:center;padding:2px;">未接続</div>
       </div>
@@ -270,30 +289,50 @@
         <div class="empty-msg">辞書が空です。エントリを追加してください。</div>
       </div>
 
-      <!-- インポート・エクスポート -->
+      <!-- データ管理（普段は折りたたみ） -->
       <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;">
-        <div style="display:flex;gap:8px;align-items:center;">
-          <span style="font-size:11px;color:#bac2de;flex:0 0 auto;">📥 インポート</span>
-          <button class="btn-copy" id="btn-import-json-fav" style="flex:1;">お気に入り / 履歴 JSON</button>
-          <input type="file" id="json-fav-file-input" accept=".json" style="display:none;">
-          <button class="btn-copy" id="btn-import-yaml" style="flex:1;">タグ辞書 YAML</button>
-          <input type="file" id="yaml-file-input" accept=".yaml,.yml" style="display:none;">
-          <button class="btn-copy" id="btn-import-phrases" style="flex:1;">フレーズ集 CSV</button>
-          <input type="file" id="phrases-file-input" accept=".csv" style="display:none;">
-          <button class="btn-copy" id="btn-import-text" style="flex:1;">📝 テキストペースト</button>
+
+        <!-- 自動保存：常時表示（よく見るので） -->
+        <div style="display:flex;gap:6px;align-items:center;background:#181825;padding:6px 8px;border-radius:6px;">
+          <span style="font-size:11px;color:#bac2de;flex:0 0 auto;">💽 自動保存</span>
+          <button class="iebtn" id="btn-autosave-set" style="flex:0 0 auto;">保存先を設定</button>
+          <button class="iebtn iebtn-pink" id="btn-autosave-off" style="flex:0 0 auto;display:none;">🔴 自動保存を解除</button>
+          <span id="autosave-status" style="font-size:10px;color:#6c7086;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">未設定</span>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <span style="font-size:11px;color:#bac2de;flex:0 0 auto;">📤 エクスポート</span>
-          <button class="btn-copy" id="btn-export" style="flex:1;">JSON</button>
-          <button class="btn-copy" id="btn-export-text" style="flex:1;">テキスト</button>
-          <button style="flex:1;padding:10px;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;background:#f38ba8;color:#1e1e2e;" id="btn-backup">💾 辞書バックアップ</button>
-          <button style="flex:1;padding:10px;border:none;border-radius:6px;font-size:13px;font-weight:bold;cursor:pointer;background:#cba6f7;color:#1e1e2e;" id="btn-restore">♻️ 辞書復元</button>
-          <input type="file" id="restore-file-input" accept=".json" style="display:none;">
-        </div>
+
+        <!-- インポート/エクスポート：折りたたみ -->
+        <details style="background:#181825;border-radius:6px;">
+          <summary style="cursor:pointer;font-size:11px;color:#bac2de;padding:6px 8px;list-style:none;user-select:none;">📁 インポート / エクスポート</summary>
+          <div style="display:flex;flex-direction:column;gap:6px;padding:0 8px 8px;">
+            <div>
+              <div style="font-size:10px;color:#6c7086;margin:2px 0 4px;">📥 インポート</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <button class="iebtn" id="btn-import-json-fav">お気に入り / 履歴 JSON</button>
+                <button class="iebtn" id="btn-import-yaml">タグ辞書 YAML</button>
+                <button class="iebtn" id="btn-import-phrases">フレーズ集 CSV</button>
+                <button class="iebtn" id="btn-import-text">📝 テキストペースト</button>
+              </div>
+              <input type="file" id="json-fav-file-input" accept=".json" style="display:none;">
+              <input type="file" id="yaml-file-input" accept=".yaml,.yml" style="display:none;">
+              <input type="file" id="phrases-file-input" accept=".csv" style="display:none;">
+            </div>
+            <div>
+              <div style="font-size:10px;color:#6c7086;margin:2px 0 4px;">📤 エクスポート / バックアップ</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                <button class="iebtn" id="btn-export">JSON</button>
+                <button class="iebtn" id="btn-export-text">テキスト</button>
+                <button class="iebtn iebtn-pink" id="btn-backup">💾 バックアップ</button>
+                <button class="iebtn iebtn-purple" id="btn-restore">♻️ 復元</button>
+              </div>
+              <input type="file" id="restore-file-input" accept=".json" style="display:none;">
+            </div>
+          </div>
+        </details>
       </div>
     </div>
   </div>
 
+  <div id="toast" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:#a6e3a1;color:#1e1e2e;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:bold;box-shadow:0 4px 16px rgba(0,0,0,0.4);opacity:0;pointer-events:none;transition:opacity 0.2s, transform 0.2s;z-index:9999;"></div>
   <script src="dict.js"></script>
 </body>
 </html>
