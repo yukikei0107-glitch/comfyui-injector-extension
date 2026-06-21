@@ -877,6 +877,20 @@ function parsePngTextChunks(arrayBuffer) {
 }
 
 // メタデータのprompt JSONからポジティブプロンプトを抽出
+// NaN / Infinity を含むメタデータJSONでもパースできる寛容なパーサー
+// （ComfyUIのメタデータに NaN が混じると標準の JSON.parse は失敗するため）
+function parseLooseJson(str) {
+  try { return JSON.parse(str); } catch (e) {}
+  try {
+    const fixed = str
+      .replace(/-?\bInfinity\b/g, "null")
+      .replace(/\bNaN\b/g, "null");
+    return JSON.parse(fixed);
+  } catch (e) {
+    return null;
+  }
+}
+
 function extractPositiveFromPrompt(promptObj) {
   for (const node of Object.values(promptObj)) {
     const title = (node._meta?.title || "").toLowerCase();
@@ -918,11 +932,14 @@ async function handleDroppedImage(file) {
     if (!chunks) { setStatus("画像を表示しました（PNG解析に失敗）", true); return; }
 
     let promptObj = null;
+    let promptParseFailed = false;
     if (chunks.prompt) {
-      try { promptObj = JSON.parse(chunks.prompt); } catch (e) {}
-    }
-    if (!promptObj && chunks.workflow) {
-      // workflowからは抽出が複雑なため、promptが無い場合のみ通知
+      promptObj = parseLooseJson(chunks.prompt);
+      if (!promptObj) {
+        promptParseFailed = true;
+        // 解析できなかった生データをコンソールに出して原因調査できるようにする
+        console.warn("prompt メタデータの解析に失敗:", chunks.prompt);
+      }
     }
 
     if (promptObj) {
@@ -933,6 +950,9 @@ async function handleDroppedImage(file) {
       } else {
         setStatus("画像を表示しました（プロンプトが見つかりませんでした）");
       }
+    } else if (promptParseFailed) {
+      // メタデータは存在するが壊れている（NaN以外の不正トークン等）
+      setStatus("画像を表示しました（メタデータが壊れていて読めません。コンソールに内容を出力しました）", true);
     } else {
       setStatus("画像を表示しました（メタデータが見つかりませんでした）");
     }

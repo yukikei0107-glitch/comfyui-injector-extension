@@ -23,7 +23,22 @@
       "Bash(ps -Ao %cpu,comm -r)",
       "Bash(git restore *)",
       "Bash(git add *)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(cd /Users/yuki_kei/Downloads; grep -rn 'ドロップされたアイテム\\\\|処理できません\\\\|hanged' comfyui_injector_extension textpair_db 2>/dev/null | head -20)",
+      "Bash(mkdir -p /Users/yuki_kei/Downloads/comfy_metadata_fix)",
+      "Read(//Volumes/Text2Img/**)",
+      "Bash(chmod +x NaN修復.command)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('fix_nan_metadata.py'\\).read\\(\\)\\); print\\('構文OK'\\)\")",
+      "Bash(pkill -f \"glob.glob\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('/Users/yuki_kei/Downloads/comfy_metadata_fix/fix_nan_metadata.py'\\).read\\(\\)\\); print\\('スクリプト構文OK'\\)\")",
+      "Bash(python3 fix_nan_metadata.py --dry-run)",
+      "Bash(pkill -f \"fix_nan_metadata.py --dry-run\")",
+      "Bash(awk '{print $2, $9, $10, $11, $12, $13, $14, $15}')",
+      "Bash(kill 62490)",
+      "Bash(python3 fix_nan_metadata.py \"/Volumes/Text2Img\")",
+      "Bash(awk '{print $2, $9, $10}')",
+      "Bash(ps -o pid,etime,time,command -p 67245)",
+      "Bash(python3 -u retry_failed.py)"
     ]
   }
 }
