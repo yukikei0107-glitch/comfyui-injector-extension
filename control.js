@@ -538,13 +538,13 @@ const LLM_DEFAULTS = {
   ollama:   { url: "http://127.0.0.1:11434", model: "mistral:latest" },
   lmstudio: { url: "http://127.0.0.1:1234",  model: "magnum-v4-12b-mlx" }
 };
-let llmBackend = "ollama";
-let llmServerUrl = LLM_DEFAULTS.ollama.url;
-let llmModel = LLM_DEFAULTS.ollama.model;
+let llmBackend = "lmstudio";
+let llmServerUrl = LLM_DEFAULTS.lmstudio.url;
+let llmModel = LLM_DEFAULTS.lmstudio.model;
 
 function loadLlmConfig() {
   chrome.storage.local.get(["llm_backend", "llm_server_url", "llm_model"], (data) => {
-    llmBackend = data.llm_backend || "ollama";
+    llmBackend = data.llm_backend || "lmstudio";
     llmServerUrl = data.llm_server_url || LLM_DEFAULTS[llmBackend].url;
     llmModel = data.llm_model || LLM_DEFAULTS[llmBackend].model;
   });

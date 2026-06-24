@@ -700,9 +700,9 @@ const modelEl = document.getElementById("llm-model");
 // 現在の設定をフィールドから取得
 function getLlmConfig() {
   return {
-    backend: backendEl.value || "ollama",
-    serverUrl: urlEl.value.trim() || LLM_DEFAULTS[backendEl.value || "ollama"].url,
-    model: modelEl.value.trim() || LLM_DEFAULTS[backendEl.value || "ollama"].model
+    backend: backendEl.value || "lmstudio",
+    serverUrl: urlEl.value.trim() || LLM_DEFAULTS[backendEl.value || "lmstudio"].url,
+    model: modelEl.value.trim() || LLM_DEFAULTS[backendEl.value || "lmstudio"].model
   };
 }
 
@@ -717,7 +717,7 @@ function saveLlmConfig() {
 
 // 起動時：保存済み設定を反映
 chrome.storage.local.get(["llm_backend", "llm_server_url", "llm_model"], (d) => {
-  const backend = d.llm_backend || "ollama";
+  const backend = d.llm_backend || "lmstudio";
   backendEl.value = backend;
   urlEl.value = d.llm_server_url || LLM_DEFAULTS[backend].url;
   modelEl.value = d.llm_model || LLM_DEFAULTS[backend].model;
