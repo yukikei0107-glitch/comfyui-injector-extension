@@ -131,7 +131,7 @@ async function chooseAutosaveFile() {
   }
 }
 
-// 起動時：保存済みの handle を復元
+// 起動時：保存済みの handle を復元（保存用のみ。ファイルからの自動読み込みはしない）
 (async () => {
   try {
     const h = await idbGet("handle");
