@@ -73,7 +73,37 @@ async function injectPrompt(text) {
   return false;
 }
 
-async function generateImage() {
+// すべての生成ボタンの有効/無効をまとめて切り替え
+function setGenButtonsDisabled(disabled) {
+  ["btn-generate", "btn-generate-2", "btn-generate-4"].forEach(id => {
+    const b = document.getElementById(id);
+    if (b) b.disabled = disabled;
+  });
+}
+
+// ComfyUIエディタに今ロードされているグラフをAPI形式で取得（本体のQueueと同じ内容）
+async function getLiveWorkflow() {
+  const tab = await getComfyTab();
+  if (!tab) return null;
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      world: "MAIN",
+      func: async () => {
+        if (!window.app || !window.app.graphToPrompt) return null;
+        const p = await window.app.graphToPrompt();
+        return (p && p.output) ? p.output : null;
+      }
+    });
+    const wf = results?.[0]?.result;
+    return (wf && Object.keys(wf).length) ? wf : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+// count 枚を生成する（各回ランダムseedでバリエーション）
+async function generateImages(count = 1) {
   const text = promptInput.value.trim();
   if (!text) { setStatus("プロンプトを入力してください", true); return; }
 
@@ -84,14 +114,18 @@ async function generateImage() {
   spinner.style.display = "block";
   placeholder.style.display = "none";
   resultImage.style.display = "none";
-  btnGenerate.disabled = true;
+  setGenButtonsDisabled(true);
 
   try {
-    const history = await bgFetch(`${COMFYUI_BASE}/history`);
-    const keys = Object.keys(history);
-    if (!keys.length) { setStatus("ワークフロー履歴がありません。一度手動で実行してください", true); return; }
-
-    const workflow = history[keys[keys.length - 1]].prompt[2];
+    // ComfyUIエディタに今ロードされているグラフを使う（本体のQueueと同じ＝同じ速度）
+    let workflow = await getLiveWorkflow();
+    if (!workflow) {
+      // フォールバック：取得できなければ履歴の最後のワークフロー
+      const history = await bgFetch(`${COMFYUI_BASE}/history`);
+      const keys = Object.keys(history);
+      if (!keys.length) { setStatus("ワークフローを取得できませんでした（ComfyUIタブを開いてください）", true); return; }
+      workflow = history[keys[keys.length - 1]].prompt[2];
+    }
 
     // ポジティブプロンプトを差し替え
     for (const [id, node] of Object.entries(workflow)) {
@@ -108,6 +142,7 @@ async function generateImage() {
 
     // SaveImageのファイル名プレフィックスの日時を現在時刻に更新
     // 例: "2026-06-02/20260602_181533_anima" → 日付フォルダとファイル名の両方を更新
+    // （同名でもComfyUI側で連番が付くため複数枚でも上書きされない）
     const now = new Date();
     const pad = n => String(n).padStart(2, '0');
     const y = now.getFullYear(), mo = pad(now.getMonth() + 1), da = pad(now.getDate());
@@ -122,16 +157,26 @@ async function generateImage() {
       }
     }
 
-    // seedをランダムに
-    const newSeed = Math.floor(Math.random() * 2**32);
-    for (const [id, node] of Object.entries(workflow)) {
-      const type = (node.class_type || "").toLowerCase();
-      if (type === "ksampler" || type === "ksampleradvanced") {
-        if ("seed" in node.inputs) node.inputs.seed = newSeed;
+    // count 回キューに送る（毎回ランダムseed）
+    const promptIds = [];
+    let lastSeed = 0;
+    for (let n = 0; n < count; n++) {
+      const newSeed = Math.floor(Math.random() * 2**32);
+      lastSeed = newSeed;
+      for (const [id, node] of Object.entries(workflow)) {
+        const type = (node.class_type || "").toLowerCase();
+        if (type === "ksampler" || type === "ksampleradvanced") {
+          if ("seed" in node.inputs) node.inputs.seed = newSeed;
+        }
       }
+      setStatus(count > 1 ? `キューに送信中... (${n + 1}/${count})` : "生成中...");
+      const queueData = await bgFetch(`${COMFYUI_BASE}/prompt`, "POST", { prompt: workflow, client_id: "comfyui_ext" });
+      if (queueData.prompt_id) promptIds.push(queueData.prompt_id);
     }
 
-    // エディタ上のseedも更新
+    if (!promptIds.length) { setStatus("キューへの送信に失敗しました", true); return; }
+
+    // エディタ上のseedも最後のものに更新
     const tab = await getComfyTab();
     if (tab) {
       await chrome.scripting.executeScript({
@@ -148,24 +193,30 @@ async function generateImage() {
             }
           }
         },
-        args: [newSeed]
+        args: [lastSeed]
       });
     }
 
-    setStatus("生成中...");
-    const queueData = await bgFetch(`${COMFYUI_BASE}/prompt`, "POST", { prompt: workflow, client_id: "comfyui_ext" });
-    const promptId = queueData.prompt_id;
-    if (!promptId) { setStatus("キューへの送信に失敗しました", true); return; }
-
-    await pollForResult(promptId);
+    // 各結果を順番に待って表示
+    let doneCount = 0;
+    for (let i = 0; i < promptIds.length; i++) {
+      setStatus(count > 1 ? `生成中... (${i + 1}/${promptIds.length})` : "生成中...");
+      const ok = await pollForResult(promptIds[i]);
+      if (ok) doneCount++;
+    }
+    setStatus(count > 1 ? `✅ ${doneCount}/${promptIds.length}枚 生成完了！` : "生成完了！");
   } catch (e) {
     setStatus("エラー: " + e.message, true);
   } finally {
     spinner.style.display = "none";
-    btnGenerate.disabled = false;
+    setGenButtonsDisabled(false);
   }
 }
 
+// 1枚生成（既存ボタン互換）
+async function generateImage() { return generateImages(1); }
+
+// 指定の promptId の結果画像を待って表示する。成功:true / タイムアウト:false
 async function pollForResult(promptId) {
   for (let i = 0; i < 120; i++) {
     await new Promise(r => setTimeout(r, 1000));
@@ -179,12 +230,11 @@ async function pollForResult(promptId) {
         resultImage.src = imgUrl;
         resultImage.style.display = "block";
         placeholder.style.display = "none";
-        setStatus("生成完了！");
-        return;
+        return true;
       }
     }
   }
-  setStatus("タイムアウト：生成に時間がかかっています", true);
+  return false;
 }
 
 async function loadCurrentPrompt() {
@@ -232,7 +282,9 @@ btnInject.addEventListener("click", async () => {
   await injectPrompt(text);
 });
 
-btnGenerate.addEventListener("click", generateImage);
+btnGenerate.addEventListener("click", () => generateImages(1));
+document.getElementById("btn-generate-2").addEventListener("click", () => generateImages(2));
+document.getElementById("btn-generate-4").addEventListener("click", () => generateImages(4));
 
 // タグサジェスト
 let allTags = [];
