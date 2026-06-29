@@ -11,27 +11,37 @@
     height: 100vh; display: flex; flex-direction: column;
   }
   #toolbar {
-    flex: 0 0 auto; display: flex; gap: 8px; align-items: center;
-    padding: 10px 12px; background: #181825; border-bottom: 1px solid #313244;
+    flex: 0 0 auto; display: flex; gap: 14px; align-items: center;
+    padding: 14px 12px 12px; background: #181825; border-bottom: 1px solid #313244;
     flex-wrap: wrap;
   }
   #toolbar button {
     border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px;
     font-weight: bold; cursor: pointer; background: #45475a; color: #cdd6f4;
   }
+  #toolbar button:hover { opacity: .85; }
   #btn-add { background: #a6e3a1; color: #1e1e2e; }
   #btn-save { background: #89b4fa; color: #1e1e2e; }
-  #toolbar button:hover { opacity: .85; }
-  .sep { width: 1px; align-self: stretch; background: #313244; margin: 0 2px; }
-  .grp { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #bac2de; }
-  .grp.disabled { opacity: .4; pointer-events: none; }
-  .grp select {
+  /* グループ（パネル） */
+  .bar-group {
+    display: flex; gap: 8px; align-items: center;
+    position: relative; padding: 9px 12px; border-radius: 10px;
+    background: #11111b; border: 1px solid #313244;
+  }
+  .bar-group > .glabel {
+    position: absolute; top: -8px; left: 10px; padding: 0 5px;
+    font-size: 10px; color: #7f849c; background: #181825;
+  }
+  .bar-group.disabled { opacity: .4; pointer-events: none; }
+  .sub { display: flex; gap: 5px; align-items: center; font-size: 12px; color: #bac2de; }
+  .sub select {
     background: #313244; color: #cdd6f4; border: 1px solid #45475a;
     border-radius: 6px; padding: 5px 6px; font-size: 12px;
   }
-  .tailbtn { padding: 6px 10px !important; background: #45475a !important; }
+  .tailpad { display: grid; grid-template-columns: repeat(2, 26px); grid-auto-rows: 23px; gap: 3px; }
+  .tailbtn { padding: 0 !important; width: 26px; height: 23px; font-size: 13px; background: #45475a !important; }
   .tailbtn.active { background: #f9e2af !important; color: #1e1e2e !important; }
-  #hint { font-size: 11px; color: #6c7086; margin-left: auto; }
+  #hint { font-size: 11px; color: #6c7086; margin-left: auto; max-width: 240px; line-height: 1.5; }
   #stage-wrap {
     flex: 1; overflow: auto; padding: 20px; display: flex;
     align-items: flex-start; justify-content: center;
@@ -72,36 +82,62 @@
 </head>
 <body>
   <div id="toolbar">
-    <button id="btn-add">＋ 吹き出し追加</button>
-    <button id="btn-open">画像を開く</button>
-    <input type="file" id="file-input" accept="image/*" style="display:none;">
-    <button id="btn-save">💾 PNGで保存</button>
-    <div class="sep"></div>
-    <div class="grp" id="grp-sel">
-      <span>しっぽ</span>
-      <button class="tailbtn" data-tail="tl" title="左上">↖</button>
-      <button class="tailbtn" data-tail="tr" title="右上">↗</button>
-      <button class="tailbtn" data-tail="bl" title="左下">↙</button>
-      <button class="tailbtn" data-tail="br" title="右下">↘</button>
-      <span style="margin-left:6px;">字</span>
-      <select id="font-family">
-        <option value="kyokasho">教科書体</option>
-        <option value="gothic">ゴシック</option>
-        <option value="maru">丸ゴシック</option>
-        <option value="mincho">明朝</option>
-      </select>
-      <select id="font-size"></select>
-      <span style="margin-left:6px;">地色</span>
-      <select id="fill-opacity">
-        <option value="1">不透明</option>
-        <option value="0.9">90%</option>
-        <option value="0.75">75%</option>
-        <option value="0.5">50%</option>
-        <option value="0.25">25%</option>
-        <option value="0">透明(枠のみ)</option>
-      </select>
+    <div class="bar-group">
+      <span class="glabel">画像・操作</span>
+      <button id="btn-open">📂 画像を開く</button>
+      <input type="file" id="file-input" accept="image/*" style="display:none;">
+      <button id="btn-add">＋ 吹き出し</button>
+      <button id="btn-save">💾 PNG</button>
     </div>
-    <span id="hint">画像をD&D / ⌘V貼付け ／ 文字はダブルクリックで編集 ／ 改行で列が増えます</span>
+    <div class="bar-group">
+      <span class="glabel">レイアウト(再編集用)</span>
+      <button id="btn-layout-save">🗂 保存</button>
+      <button id="btn-layout-load">📂 読込</button>
+      <input type="file" id="layout-input" accept=".json" style="display:none;">
+    </div>
+    <div class="bar-group disabled" id="grp-sel">
+      <span class="glabel">選択中の吹き出し</span>
+      <div class="sub">
+        <span>形</span>
+        <select id="bubble-shape">
+          <option value="ellipse">楕円</option>
+          <option value="round">角丸</option>
+          <option value="cloud">もくもく</option>
+          <option value="spike">ギザギザ</option>
+        </select>
+      </div>
+      <div class="sub">
+        <span>しっぽ</span>
+        <div class="tailpad">
+          <button class="tailbtn" data-tail="tl" title="左上">↖</button>
+          <button class="tailbtn" data-tail="tr" title="右上">↗</button>
+          <button class="tailbtn" data-tail="bl" title="左下">↙</button>
+          <button class="tailbtn" data-tail="br" title="右下">↘</button>
+        </div>
+      </div>
+      <div class="sub">
+        <span>文字</span>
+        <select id="font-family">
+          <option value="kyokasho">教科書体</option>
+          <option value="gothic">ゴシック</option>
+          <option value="maru">丸ゴシック</option>
+          <option value="mincho">明朝</option>
+        </select>
+        <select id="font-size"></select>
+      </div>
+      <div class="sub">
+        <span>地色</span>
+        <select id="fill-opacity">
+          <option value="1">不透明</option>
+          <option value="0.9">90%</option>
+          <option value="0.75">75%</option>
+          <option value="0.5">50%</option>
+          <option value="0.25">25%</option>
+          <option value="0">透明(枠のみ)</option>
+        </select>
+      </div>
+    </div>
+    <span id="hint">D&D/⌘V で画像 ／ ダブルクリックで文字編集 ／ Delete削除・矢印で移動・⌘D複製</span>
   </div>
   <div id="stage-wrap">
     <div id="stage">

@@ -112,7 +112,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 // すべての画面を一度に開く
 async function openAllTabs() {
-  const pages = ["control.html", "dict.html", "history.html", "phrase_search.html"];
+  const pages = ["control.html", "dict.html", "history.html", "phrase_search.html", "bubble.html"];
   for (const page of pages) {
     // 最後のcontrol.htmlだけアクティブにする
     await openExtTab(page, false);
@@ -158,6 +158,11 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "🔍 外部フレーズ検索を開く",
     contexts: ["all"]
   });
+  chrome.contextMenus.create({
+    id: "open-bubble",
+    title: "💬 吹き出しエディタを開く",
+    contexts: ["all"]
+  });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info) => {
@@ -181,6 +186,16 @@ chrome.contextMenus.onClicked.addListener(async (info) => {
       chrome.windows.update(tabs[0].windowId, { focused: true });
     } else {
       chrome.tabs.create({ url: chrome.runtime.getURL("history.html") });
+    }
+    return;
+  }
+  if (info.menuItemId === "open-bubble") {
+    const tabs = await chrome.tabs.query({ url: chrome.runtime.getURL("bubble.html") });
+    if (tabs.length > 0) {
+      chrome.tabs.update(tabs[0].id, { active: true });
+      chrome.windows.update(tabs[0].windowId, { focused: true });
+    } else {
+      chrome.tabs.create({ url: chrome.runtime.getURL("bubble.html") });
     }
     return;
   }

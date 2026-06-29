@@ -1,6 +1,6 @@
 // 吹き出しエディタ
-// 楕円＋しっぽを「1本の輪郭（多角形近似）」としてSVGで描き、テキストを重ねる。
-// 書き出しは同じ輪郭座標をcanvasに描くので編集画面と一致する。
+// 形（楕円/角丸/もくもく/ギザギザ）＋しっぽ4方向を「1本の輪郭（多角形）」として
+// SVGで描き、テキストを重ねる。書き出しは同じ輪郭座標をcanvasに描くので一致する。
 
 const SVGNS = "http://www.w3.org/2000/svg";
 const stage = document.getElementById("stage");
@@ -18,51 +18,91 @@ const FONTS = {
 const SIZES = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 48, 56, 64];
 
 // 縦書きで90°回転して描く文字（長音・波ダッシュ・各種ダッシュ・括弧類）
-// 編集画面の text-orientation:mixed の自動回転を、書き出しでも再現するため
 const VERT_ROTATE = new Set(
   ["ー", "〜", "～", "ｰ", "—", "―", "–", "‐", "－", "−", "…", "‥",
    "（", "）", "「", "」", "『", "』", "【", "】", "〔", "〕", "｛", "｝",
    "［", "］", "〈", "〉", "《", "》", "(", ")", "~", "-"]
 );
 
-const defaults = { tail: "br", fontKey: "kyokasho", fontPx: 20, opacity: 1 };
+const TAIL_DEG = { br: 58, bl: 122, tr: 302, tl: 238 }; // しっぽの基準角（y下向き）
 
-// しっぽの向き → 基準角度（y下向き座標）。tr=右上 br=右下 bl=左下 tl=左上
-const TAIL_DEG = { br: 58, bl: 122, tr: 302, tl: 238 };
+const defaults = { shape: "ellipse", tail: "br", fontKey: "kyokasho", fontPx: 20, opacity: 1 };
 
-// ===== 吹き出しの輪郭（楕円＋しっぽ）を多角形で返す。編集と書き出しで共用 =====
-function bubbleOutlinePoints(w, h, border, tail) {
+// ===== 形ごとの輪郭（中心基準の閉じた多角形・しっぽ無し） =====
+function shapeOutline(w, h, b, shape) {
   const cx = w / 2, cy = h / 2;
-  const rx = Math.max(1, w / 2 - border / 2);
-  const ry = Math.max(1, h / 2 - border / 2);
-  const baseDeg = TAIL_DEG[tail] != null ? TAIL_DEG[tail] : TAIL_DEG.br;
-  const spread = 7.5;                                // 口元の幅（さらに小さめ）
-  const a1 = (baseDeg - spread) * Math.PI / 180;
-  const a2 = (baseDeg + spread) * Math.PI / 180;
-  const am = baseDeg * Math.PI / 180;
-  const ext = Math.min(rx, ry) * 0.18 + border * 2;  // しっぽの長さ（さらに小さめ）
-  const tip = [cx + (rx + ext) * Math.cos(am), cy + (ry + ext) * Math.sin(am)];
-
+  const rx = Math.max(1, w / 2 - b / 2), ry = Math.max(1, h / 2 - b / 2);
   const pts = [];
-  const N = 72;
-  const start = a2, end = a1 + 2 * Math.PI; // 口元(a1〜a2)を避けて長い方を一周
-  for (let i = 0; i <= N; i++) {
-    const t = start + (end - start) * i / N;
-    pts.push([cx + rx * Math.cos(t), cy + ry * Math.sin(t)]);
+  if (shape === "round") {
+    const x = b / 2, y = b / 2, W = w - b, H = h - b, r = Math.min(W, H) * 0.2, seg = 8;
+    const corners = [
+      [x + W - r, y + r, -Math.PI / 2, 0],
+      [x + W - r, y + H - r, 0, Math.PI / 2],
+      [x + r, y + H - r, Math.PI / 2, Math.PI],
+      [x + r, y + r, Math.PI, Math.PI * 1.5]
+    ];
+    for (const [ccx, ccy, a0, a1] of corners)
+      for (let i = 0; i <= seg; i++) { const t = a0 + (a1 - a0) * i / seg; pts.push([ccx + r * Math.cos(t), ccy + r * Math.sin(t)]); }
+  } else if (shape === "cloud") {
+    const bumps = 11, amp = 0.07, N = 160;
+    for (let i = 0; i < N; i++) {
+      const t = i / N * 2 * Math.PI;
+      const k = 1 + amp * Math.cos(bumps * t);
+      pts.push([cx + rx * k * Math.cos(t), cy + ry * k * Math.sin(t)]);
+    }
+  } else if (shape === "spike") {
+    const spikes = 18;
+    for (let i = 0; i < spikes * 2; i++) {
+      const t = i / (spikes * 2) * 2 * Math.PI;
+      const rr = (i % 2 === 0) ? 1 : 0.8;
+      pts.push([cx + rx * rr * Math.cos(t), cy + ry * rr * Math.sin(t)]);
+    }
+  } else { // ellipse
+    const N = 84;
+    for (let i = 0; i < N; i++) { const t = i / N * 2 * Math.PI; pts.push([cx + rx * Math.cos(t), cy + ry * Math.sin(t)]); }
   }
-  pts.push(tip); // 最後にしっぽの先端（閉じると p1→tip→p2 になる）
   return pts;
 }
 
-// ===== 画像読み込み =====
-async function loadImageFromSrc(src) {
-  let finalSrc = src;
-  if (/^https?:/i.test(src)) {
-    try { const r = await fetch(src); finalSrc = URL.createObjectURL(await r.blob()); } catch (e) {}
+// 形＋しっぽの輪郭。輪郭の中で「しっぽ方向の口元」を先端(tip)に置き換える
+function bubbleOutlinePoints(w, h, border, shape, tail) {
+  const base = shapeOutline(w, h, border, shape);
+  const cx = w / 2, cy = h / 2;
+  const am = (TAIL_DEG[tail] != null ? TAIL_DEG[tail] : TAIL_DEG.br) * Math.PI / 180;
+  const spread = 8 * Math.PI / 180;
+  const inMouth = (p) => {
+    let d = Math.atan2(p[1] - cy, p[0] - cx) - am;
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    return Math.abs(d) < spread;
+  };
+  let sum = 0, n = 0;
+  for (const p of base) if (inMouth(p)) { sum += Math.hypot(p[0] - cx, p[1] - cy); n++; }
+  const rMouth = n ? sum / n : Math.min(w, h) / 2;
+  const ext = Math.min(w, h) * 0.09 + border * 2; // しっぽの長さ（小さめ）
+  const tip = [cx + (rMouth + ext) * Math.cos(am), cy + (rMouth + ext) * Math.sin(am)];
+
+  const out = []; let inserted = false;
+  for (const p of base) {
+    if (inMouth(p)) { if (!inserted) { out.push(tip); inserted = true; } continue; }
+    out.push(p);
   }
-  baseImg.onload = () => { placeholder.style.display = "none"; baseImg.style.display = "block"; };
-  baseImg.onerror = () => alert("画像を読み込めませんでした");
-  baseImg.src = finalSrc;
+  if (!inserted) out.push(tip);
+  return out;
+}
+const strokeJoin = (shape) => (shape === "spike" ? "miter" : "round");
+
+// ===== 画像読み込み =====
+function loadImageFromSrc(src) {
+  return new Promise(async (resolve) => {
+    let finalSrc = src;
+    if (/^https?:/i.test(src)) {
+      try { const r = await fetch(src); finalSrc = URL.createObjectURL(await r.blob()); } catch (e) {}
+    }
+    baseImg.onload = () => { placeholder.style.display = "none"; baseImg.style.display = "block"; resolve(true); };
+    baseImg.onerror = () => { alert("画像を読み込めませんでした"); resolve(false); };
+    baseImg.src = finalSrc;
+  });
 }
 function fileToSrc(file) { const fr = new FileReader(); fr.onload = () => loadImageFromSrc(fr.result); fr.readAsDataURL(file); }
 
@@ -86,6 +126,7 @@ window.addEventListener("paste", (e) => {
 
 // ===== ツールバー =====
 const grpSel = document.getElementById("grp-sel");
+const shapeSel = document.getElementById("bubble-shape");
 const fontFamilySel = document.getElementById("font-family");
 const fontSizeSel = document.getElementById("font-size");
 const fillOpacitySel = document.getElementById("fill-opacity");
@@ -103,7 +144,7 @@ function applyFont(b) {
 function renderShape(b) {
   const w = b.offsetWidth, h = b.offsetHeight;
   const op = parseFloat(b.dataset.opacity);
-  const pts = bubbleOutlinePoints(w, h, BORDER, b.dataset.tail);
+  const pts = bubbleOutlinePoints(w, h, BORDER, b.dataset.shape, b.dataset.tail);
   const svg = b.querySelector(".bubble-svg");
   svg.setAttribute("width", w);
   svg.setAttribute("height", h);
@@ -112,12 +153,13 @@ function renderShape(b) {
   poly.setAttribute("fill", `rgba(255,255,255,${op})`);
   poly.setAttribute("stroke", "#1a1a1a");
   poly.setAttribute("stroke-width", BORDER);
-  poly.setAttribute("stroke-linejoin", "round");
+  poly.setAttribute("stroke-linejoin", strokeJoin(b.dataset.shape));
 }
 
 function syncToolbar() {
   if (!selected) { grpSel.classList.add("disabled"); return; }
   grpSel.classList.remove("disabled");
+  shapeSel.value = selected.dataset.shape;
   fontFamilySel.value = selected.dataset.fontKey;
   fontSizeSel.value = selected.dataset.fontPx;
   fillOpacitySel.value = selected.dataset.opacity;
@@ -131,6 +173,7 @@ function selectBubble(b) {
   syncToolbar();
 }
 
+shapeSel.addEventListener("change", () => { if (!selected) return; selected.dataset.shape = defaults.shape = shapeSel.value; renderShape(selected); });
 tailBtns.forEach(btn => btn.addEventListener("click", () => {
   if (!selected) return;
   selected.dataset.tail = defaults.tail = btn.dataset.tail;
@@ -153,22 +196,22 @@ function addBubble(opt = {}) {
 
   const b = document.createElement("div");
   b.className = "bubble";
-  b.dataset.tail = defaults.tail;
-  b.dataset.fontKey = defaults.fontKey;
-  b.dataset.fontPx = defaults.fontPx;
-  b.dataset.opacity = defaults.opacity;
+  b.dataset.shape = opt.shape || defaults.shape;
+  b.dataset.tail = opt.tail || defaults.tail;
+  b.dataset.fontKey = opt.fontKey || defaults.fontKey;
+  b.dataset.fontPx = opt.fontPx || defaults.fontPx;
+  b.dataset.opacity = opt.opacity != null ? opt.opacity : defaults.opacity;
   b.style.left = px + "px"; b.style.top = py + "px";
   b.style.width = bw + "px"; b.style.height = bh + "px";
 
   const svg = document.createElementNS(SVGNS, "svg");
   svg.setAttribute("class", "bubble-svg");
-  const poly = document.createElementNS(SVGNS, "polygon");
-  svg.appendChild(poly);
+  svg.appendChild(document.createElementNS(SVGNS, "polygon"));
 
   const text = document.createElement("div");
   text.className = "bubble-text";
   text.contentEditable = "true";
-  text.textContent = "テキスト";
+  text.textContent = opt.text != null ? opt.text : "テキスト";
 
   const del = document.createElement("div");
   del.className = "del"; del.title = "削除"; del.textContent = "×";
@@ -184,14 +227,22 @@ function addBubble(opt = {}) {
   return b;
 }
 
+function duplicateBubble(src) {
+  const b = addBubble({
+    x: parseFloat(src.style.left) + 20, y: parseFloat(src.style.top) + 20,
+    w: src.offsetWidth, h: src.offsetHeight,
+    shape: src.dataset.shape, tail: src.dataset.tail,
+    fontKey: src.dataset.fontKey, fontPx: src.dataset.fontPx, opacity: src.dataset.opacity,
+    text: src.querySelector(".bubble-text").innerText
+  });
+  return b;
+}
+
 function wireBubble(b) {
   const textEl = b.querySelector(".bubble-text");
   let editing = false;
   textEl.addEventListener("dblclick", () => { editing = true; textEl.focus(); });
   textEl.addEventListener("blur", () => { editing = false; });
-
-  // Enterは「改行文字」を入れる（ブロック<div>を作らせない＝縦書きで列が割れない）
-  // IME変換確定のEnterには介入しない
   textEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.isComposing && e.keyCode !== 229) {
       e.preventDefault();
@@ -205,7 +256,6 @@ function wireBubble(b) {
     b.remove();
   });
 
-  // リサイズ（吹き出しの大きさ＝楕円のサイズ。文字サイズとは独立）
   b.querySelector(".resize").addEventListener("mousedown", (e) => {
     e.preventDefault(); e.stopPropagation(); selectBubble(b);
     const sx = e.clientX, sy = e.clientY, ow = b.offsetWidth, oh = b.offsetHeight;
@@ -218,7 +268,6 @@ function wireBubble(b) {
     document.addEventListener("mousemove", move); document.addEventListener("mouseup", up);
   });
 
-  // 本体ドラッグで移動（編集中・ハンドル上は除く）
   b.addEventListener("mousedown", (e) => {
     selectBubble(b);
     if (e.target.classList.contains("del") || e.target.classList.contains("resize")) return;
@@ -236,6 +285,31 @@ function wireBubble(b) {
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
 stage.addEventListener("mousedown", (e) => { if (e.target === stage || e.target === baseImg) selectBubble(null); });
+
+// ===== キーボード操作（削除・移動・複製） =====
+window.addEventListener("keydown", (e) => {
+  const ae = document.activeElement;
+  if (ae && ae.classList && ae.classList.contains("bubble-text")) return; // 文字編集中は無効
+  if ((e.metaKey || e.ctrlKey) && (e.key === "d" || e.key === "D")) {
+    if (selected) { e.preventDefault(); duplicateBubble(selected); }
+    return;
+  }
+  if (!selected) return;
+  if (e.key === "Delete" || e.key === "Backspace") {
+    e.preventDefault();
+    const b = selected; selectBubble(null); b.remove();
+  } else if (e.key.startsWith("Arrow")) {
+    e.preventDefault();
+    const step = e.shiftKey ? 10 : 1;
+    let x = parseFloat(selected.style.left), y = parseFloat(selected.style.top);
+    if (e.key === "ArrowLeft") x -= step;
+    if (e.key === "ArrowRight") x += step;
+    if (e.key === "ArrowUp") y -= step;
+    if (e.key === "ArrowDown") y += step;
+    selected.style.left = clamp(x, 0, stage.clientWidth - selected.offsetWidth) + "px";
+    selected.style.top = clamp(y, 0, stage.clientHeight - selected.offsetHeight) + "px";
+  }
+});
 
 // ===== PNG 書き出し =====
 document.getElementById("btn-save").addEventListener("click", exportPNG);
@@ -259,34 +333,29 @@ function exportPNG() {
     const cs = getComputedStyle(textEl);
     const op = parseFloat(b.dataset.opacity);
 
-    // 形（編集と同じ輪郭をスケールして描く）
-    const pts = bubbleOutlinePoints(w, h, BORDER * scale, b.dataset.tail);
+    const pts = bubbleOutlinePoints(w, h, BORDER * scale, b.dataset.shape, b.dataset.tail);
     ctx.beginPath();
     ctx.moveTo(x + pts[0][0], y + pts[0][1]);
     for (let i = 1; i < pts.length; i++) ctx.lineTo(x + pts[i][0], y + pts[i][1]);
     ctx.closePath();
     ctx.fillStyle = `rgba(255,255,255,${op})`;
     ctx.fill();
-    ctx.lineJoin = "round";
+    ctx.lineJoin = strokeJoin(b.dataset.shape);
     ctx.lineWidth = BORDER * scale;
     ctx.strokeStyle = "#1a1a1a";
     ctx.stroke();
 
-    // テキスト（縦書き）
     drawVerticalText(ctx, textEl.innerText.trim(), x, y, w, h, cs.fontFamily, parseFloat(cs.fontSize) * scale);
   });
 
   canvas.toBlob((blob) => {
     const a = document.createElement("a");
-    const t = new Date(); const p = n => String(n).padStart(2, "0");
-    a.download = `bubble_${t.getFullYear()}${p(t.getMonth()+1)}${p(t.getDate())}_${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}.png`;
+    a.download = "bubble_" + tsName() + ".png";
     a.href = URL.createObjectURL(blob); a.click(); URL.revokeObjectURL(a.href);
   }, "image/png");
 }
 
-// 縦書きテキスト（canvasには縦書きが無いので1文字ずつ縦に並べ、列は右→左）
-// 編集画面(.bubble-text)に合わせる：列間=1.1em、文字送り=1em、アタマ揃え（上から）、
-// テキスト領域は楕円ボックスの inset 12%(上下)/16%(左右)。
+// 縦書きテキスト（編集画面に合わせる：列間1.1em／文字送り1em／アタマ揃え／inset 12%/16%）
 function drawVerticalText(ctx, text, x, y, w, h, fontFamily, fontPx) {
   if (!text) return;
   ctx.fillStyle = "#1a1a1a";
@@ -294,28 +363,22 @@ function drawVerticalText(ctx, text, x, y, w, h, fontFamily, fontPx) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const colSpacing = fontPx * 1.1, charH = fontPx * 1.0;
-  const innerTop = y + h * 0.12;
-  const innerH = h * 0.76;
+  const innerTop = y + h * 0.12, innerH = h * 0.76;
   const maxPerCol = Math.max(1, Math.floor(innerH / charH));
   const cols = [];
   for (const para of text.split("\n")) {
     const chars = [...para];
-    if (!chars.length) { cols.push([]); continue; } // 空行＝空列ぶん空ける
+    if (!chars.length) { cols.push([]); continue; }
     for (let i = 0; i < chars.length; i += maxPerCol) cols.push(chars.slice(i, i + maxPerCol));
   }
   if (!cols.length) return;
   const cx = x + w / 2;
-  let colX = cx + (cols.length - 1) * colSpacing / 2; // 右の列から左へ（中央寄せ）
+  let colX = cx + (cols.length - 1) * colSpacing / 2;
   for (const col of cols) {
-    let chY = innerTop + charH / 2; // アタマ揃え（上から）
+    let chY = innerTop + charH / 2;
     for (const ch of col) {
       if (VERT_ROTATE.has(ch)) {
-        // 90°回転して縦向きに（〜 ー （） などを縦書き用に）
-        ctx.save();
-        ctx.translate(colX, chY);
-        ctx.rotate(Math.PI / 2);
-        ctx.fillText(ch, 0, 0);
-        ctx.restore();
+        ctx.save(); ctx.translate(colX, chY); ctx.rotate(Math.PI / 2); ctx.fillText(ch, 0, 0); ctx.restore();
       } else {
         ctx.fillText(ch, colX, chY);
       }
@@ -324,5 +387,64 @@ function drawVerticalText(ctx, text, x, y, w, h, fontFamily, fontPx) {
     colX -= colSpacing;
   }
 }
+
+// ===== レイアウト保存/読込（画像＋吹き出しをJSONに） =====
+function tsName() {
+  const t = new Date(), p = n => String(n).padStart(2, "0");
+  return `${t.getFullYear()}${p(t.getMonth()+1)}${p(t.getDate())}_${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}`;
+}
+function imageDataURL() {
+  const c = document.createElement("canvas");
+  c.width = baseImg.naturalWidth; c.height = baseImg.naturalHeight;
+  c.getContext("2d").drawImage(baseImg, 0, 0);
+  return c.toDataURL("image/png");
+}
+
+document.getElementById("btn-layout-save").addEventListener("click", () => {
+  if (!baseImg.src || baseImg.style.display === "none") { alert("画像がありません"); return; }
+  const sw = baseImg.clientWidth, sh = baseImg.clientHeight;
+  const bubbles = [...document.querySelectorAll(".bubble")].map(b => ({
+    fx: parseFloat(b.style.left) / sw, fy: parseFloat(b.style.top) / sh,
+    fw: b.offsetWidth / sw, fh: b.offsetHeight / sh,
+    shape: b.dataset.shape, tail: b.dataset.tail,
+    fontKey: b.dataset.fontKey, fontPx: +b.dataset.fontPx, opacity: +b.dataset.opacity,
+    text: b.querySelector(".bubble-text").innerText
+  }));
+  let image;
+  try { image = imageDataURL(); }
+  catch (e) { alert("画像を保存できませんでした（CORS）"); return; }
+  const data = { version: 1, image, bubbles };
+  const blob = new Blob([JSON.stringify(data)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.download = "bubble_layout_" + tsName() + ".json";
+  a.href = URL.createObjectURL(blob); a.click(); URL.revokeObjectURL(a.href);
+});
+
+document.getElementById("btn-layout-load").addEventListener("click", () => document.getElementById("layout-input").click());
+document.getElementById("layout-input").addEventListener("change", (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const fr = new FileReader();
+  fr.onload = async () => {
+    let data;
+    try { data = JSON.parse(fr.result); } catch (err) { alert("レイアウトの読み込みに失敗しました"); return; }
+    if (!data || !data.image || !Array.isArray(data.bubbles)) { alert("レイアウトファイルではありません"); return; }
+    document.querySelectorAll(".bubble").forEach(b => b.remove());
+    selectBubble(null);
+    const ok = await loadImageFromSrc(data.image);
+    if (!ok) return;
+    const sw = baseImg.clientWidth, sh = baseImg.clientHeight;
+    for (const bd of data.bubbles) {
+      addBubble({
+        x: bd.fx * sw, y: bd.fy * sh, w: bd.fw * sw, h: bd.fh * sh,
+        shape: bd.shape, tail: bd.tail, fontKey: bd.fontKey, fontPx: bd.fontPx,
+        opacity: bd.opacity, text: bd.text
+      });
+    }
+    selectBubble(null);
+  };
+  fr.readAsText(f);
+  e.target.value = "";
+});
 
 syncToolbar();
