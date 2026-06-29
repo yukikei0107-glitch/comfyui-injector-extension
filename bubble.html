@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>吹き出しエディタ</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: #1e1e2e; color: #cdd6f4;
+    font-family: -apple-system, "Hiragino Sans", system-ui, sans-serif;
+    height: 100vh; display: flex; flex-direction: column;
+  }
+  #toolbar {
+    flex: 0 0 auto; display: flex; gap: 8px; align-items: center;
+    padding: 10px 12px; background: #181825; border-bottom: 1px solid #313244;
+    flex-wrap: wrap;
+  }
+  #toolbar button {
+    border: none; border-radius: 8px; padding: 8px 12px; font-size: 13px;
+    font-weight: bold; cursor: pointer; background: #45475a; color: #cdd6f4;
+  }
+  #btn-add { background: #a6e3a1; color: #1e1e2e; }
+  #btn-save { background: #89b4fa; color: #1e1e2e; }
+  #toolbar button:hover { opacity: .85; }
+  .sep { width: 1px; align-self: stretch; background: #313244; margin: 0 2px; }
+  .grp { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #bac2de; }
+  .grp.disabled { opacity: .4; pointer-events: none; }
+  .grp select {
+    background: #313244; color: #cdd6f4; border: 1px solid #45475a;
+    border-radius: 6px; padding: 5px 6px; font-size: 12px;
+  }
+  .tailbtn { padding: 6px 10px !important; background: #45475a !important; }
+  .tailbtn.active { background: #f9e2af !important; color: #1e1e2e !important; }
+  #hint { font-size: 11px; color: #6c7086; margin-left: auto; }
+  #stage-wrap {
+    flex: 1; overflow: auto; padding: 20px; display: flex;
+    align-items: flex-start; justify-content: center;
+  }
+  #stage {
+    position: relative; display: inline-block; line-height: 0;
+    background: #11111b; min-width: 320px; min-height: 200px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.4);
+  }
+  #base-img { display: none; max-width: calc(100vw - 48px); max-height: calc(100vh - 120px); width: auto; height: auto; }
+  #placeholder {
+    color: #45475a; font-size: 15px; text-align: center; padding: 80px 40px; line-height: 1.8;
+  }
+  /* 吹き出し（SVGで形を描き、テキストを重ねる。書き出し時はcanvasに同じ座標で描き直す） */
+  .bubble { position: absolute; }
+  .bubble-svg { position: absolute; left: 0; top: 0; overflow: visible; }
+  .bubble-text {
+    position: absolute; inset: 12% 16%;
+    outline: none; color: #1a1a1a; font-weight: 600;
+    font-size: 18px; line-height: 1.1;
+    writing-mode: vertical-rl; text-orientation: mixed;
+    white-space: pre-wrap;
+    display: grid; place-content: center start; text-align: start;
+    overflow: hidden; cursor: text; z-index: 1;
+  }
+  .bubble .del {
+    position: absolute; top: -10px; right: 4%; width: 22px; height: 22px;
+    border-radius: 50%; background: #f38ba8; color: #1e1e2e; font-weight: bold;
+    font-size: 14px; line-height: 22px; text-align: center; cursor: pointer;
+    user-select: none; z-index: 3;
+  }
+  .bubble .resize {
+    position: absolute; right: 2%; bottom: 4%; width: 16px; height: 16px;
+    border-radius: 50%; background: #89b4fa; cursor: nwse-resize; z-index: 3;
+  }
+  .bubble.selected { outline: 2px dashed #89b4fa; outline-offset: 2px; }
+</style>
+</head>
+<body>
+  <div id="toolbar">
+    <button id="btn-add">＋ 吹き出し追加</button>
+    <button id="btn-open">画像を開く</button>
+    <input type="file" id="file-input" accept="image/*" style="display:none;">
+    <button id="btn-save">💾 PNGで保存</button>
+    <div class="sep"></div>
+    <div class="grp" id="grp-sel">
+      <span>しっぽ</span>
+      <button class="tailbtn" data-tail="tl" title="左上">↖</button>
+      <button class="tailbtn" data-tail="tr" title="右上">↗</button>
+      <button class="tailbtn" data-tail="bl" title="左下">↙</button>
+      <button class="tailbtn" data-tail="br" title="右下">↘</button>
+      <span style="margin-left:6px;">字</span>
+      <select id="font-family">
+        <option value="kyokasho">教科書体</option>
+        <option value="gothic">ゴシック</option>
+        <option value="maru">丸ゴシック</option>
+        <option value="mincho">明朝</option>
+      </select>
+      <select id="font-size"></select>
+      <span style="margin-left:6px;">地色</span>
+      <select id="fill-opacity">
+        <option value="1">不透明</option>
+        <option value="0.9">90%</option>
+        <option value="0.75">75%</option>
+        <option value="0.5">50%</option>
+        <option value="0.25">25%</option>
+        <option value="0">透明(枠のみ)</option>
+      </select>
+    </div>
+    <span id="hint">画像をD&D / ⌘V貼付け ／ 文字はダブルクリックで編集 ／ 改行で列が増えます</span>
+  </div>
+  <div id="stage-wrap">
+    <div id="stage">
+      <img id="base-img" alt="">
+      <div id="placeholder">ここに画像をドラッグ&ドロップ<br>または「画像を開く」「⌘V で貼り付け」</div>
+    </div>
+  </div>
+  <script src="bubble.js"></script>
+</body>
+</html>

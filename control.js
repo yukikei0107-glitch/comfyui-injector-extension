@@ -286,6 +286,21 @@ btnGenerate.addEventListener("click", () => generateImages(1));
 document.getElementById("btn-generate-2").addEventListener("click", () => generateImages(2));
 document.getElementById("btn-generate-4").addEventListener("click", () => generateImages(4));
 
+// 吹き出しエディタを開く（表示中の画像を渡す）
+document.getElementById("btn-bubble").addEventListener("click", async () => {
+  try {
+    if (resultImage.style.display !== "none" && resultImage.src) {
+      const dataUrl = await imageToDataUrl(resultImage);
+      await chrome.storage.local.set({ bubble_image: dataUrl });
+    }
+  } catch (e) {
+    setStatus("画像の受け渡しに失敗（エディタは空で開きます）: " + e.message, true);
+  }
+  const url = chrome.runtime.getURL("bubble.html");
+  if (chrome.tabs?.create) chrome.tabs.create({ url });
+  else window.open(url, "_blank");
+});
+
 // タグサジェスト
 let allTags = [];
 async function loadTags() {
