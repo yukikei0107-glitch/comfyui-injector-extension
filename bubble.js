@@ -38,7 +38,9 @@ function tailAngle(w, h, shape, tail) {
   return (TAIL_DEG[tail] != null ? TAIL_DEG[tail] : TAIL_DEG.br) * Math.PI / 180;
 }
 
-const defaults = { shape: "ellipse", tail: "br", fontKey: "kyokasho", fontPx: 20, opacity: 1 };
+const defaults = { shape: "ellipse", tail: "br", fontKey: "kyokasho", fontPx: 20, opacity: 1, textColor: "black", outline: "none" };
+const COLORS = { black: "#1a1a1a", white: "#ffffff" };
+const outlineWidthFor = (fontPx) => Math.max(1.5, fontPx * 0.14); // フチの太さ（表示px）
 
 // ===== 形ごとの輪郭（中心基準の閉じた多角形・しっぽ無し） =====
 // 全周をまんべんなく（角度一様に）サンプリングする。こうすると、しっぽが
@@ -146,6 +148,8 @@ const grpSel = document.getElementById("grp-sel");
 const shapeSel = document.getElementById("bubble-shape");
 const fontFamilySel = document.getElementById("font-family");
 const fontSizeSel = document.getElementById("font-size");
+const textColorSel = document.getElementById("text-color");
+const textOutlineSel = document.getElementById("text-outline");
 const fillOpacitySel = document.getElementById("fill-opacity");
 const tailBtns = [...document.querySelectorAll(".tailbtn[data-tail]")];
 SIZES.forEach(s => { const o = document.createElement("option"); o.value = s; o.textContent = s + "pt"; fontSizeSel.appendChild(o); });
@@ -156,6 +160,21 @@ function applyFont(b) {
   const t = b.querySelector(".bubble-text");
   t.style.fontFamily = FONTS[b.dataset.fontKey] || FONTS.kyokasho;
   t.style.fontSize = b.dataset.fontPx + "px";
+  applyTextStyle(b); // フチの太さがフォントサイズに比例するので一緒に更新
+}
+
+// 文字色・フチ取り（編集画面）
+function applyTextStyle(b) {
+  const t = b.querySelector(".bubble-text");
+  t.style.color = COLORS[b.dataset.textColor] || COLORS.black;
+  if (b.dataset.outline && b.dataset.outline !== "none") {
+    t.style.webkitTextStrokeColor = COLORS[b.dataset.outline] || COLORS.white;
+    t.style.webkitTextStrokeWidth = outlineWidthFor(+b.dataset.fontPx) + "px";
+    t.style.paintOrder = "stroke fill"; // フチを文字の後ろに（文字を細らせない）
+  } else {
+    t.style.webkitTextStrokeWidth = "0";
+    t.style.paintOrder = "";
+  }
 }
 
 function renderShape(b) {
@@ -179,6 +198,8 @@ function syncToolbar() {
   shapeSel.value = selected.dataset.shape;
   fontFamilySel.value = selected.dataset.fontKey;
   fontSizeSel.value = selected.dataset.fontPx;
+  textColorSel.value = selected.dataset.textColor;
+  textOutlineSel.value = selected.dataset.outline;
   fillOpacitySel.value = selected.dataset.opacity;
   const tailOn = hasTail(selected.dataset.shape);
   tailBtns.forEach(btn => {
@@ -202,6 +223,8 @@ tailBtns.forEach(btn => btn.addEventListener("click", () => {
 }));
 fontFamilySel.addEventListener("change", () => { if (!selected) return; selected.dataset.fontKey = defaults.fontKey = fontFamilySel.value; applyFont(selected); });
 fontSizeSel.addEventListener("change", () => { if (!selected) return; selected.dataset.fontPx = defaults.fontPx = fontSizeSel.value; applyFont(selected); });
+textColorSel.addEventListener("change", () => { if (!selected) return; selected.dataset.textColor = defaults.textColor = textColorSel.value; applyTextStyle(selected); });
+textOutlineSel.addEventListener("change", () => { if (!selected) return; selected.dataset.outline = defaults.outline = textOutlineSel.value; applyTextStyle(selected); });
 fillOpacitySel.addEventListener("change", () => { if (!selected) return; selected.dataset.opacity = defaults.opacity = fillOpacitySel.value; renderShape(selected); });
 
 // 重なり順（DOMの並び＝重なり順。後の要素ほど前面）
@@ -237,6 +260,8 @@ function addBubble(opt = {}) {
   b.dataset.tail = opt.tail || defaults.tail;
   b.dataset.fontKey = opt.fontKey || defaults.fontKey;
   b.dataset.fontPx = opt.fontPx || defaults.fontPx;
+  b.dataset.textColor = opt.textColor || defaults.textColor;
+  b.dataset.outline = opt.outline || defaults.outline;
   b.dataset.opacity = opt.opacity != null ? opt.opacity : defaults.opacity;
   b.style.left = px + "px"; b.style.top = py + "px";
   b.style.width = bw + "px"; b.style.height = bh + "px";
@@ -270,6 +295,7 @@ function duplicateBubble(src) {
     w: src.offsetWidth, h: src.offsetHeight,
     shape: src.dataset.shape, tail: src.dataset.tail,
     fontKey: src.dataset.fontKey, fontPx: src.dataset.fontPx, opacity: src.dataset.opacity,
+    textColor: src.dataset.textColor, outline: src.dataset.outline,
     text: src.querySelector(".bubble-text").innerText
   });
   return b;
@@ -382,7 +408,10 @@ function exportPNG() {
     ctx.strokeStyle = "#1a1a1a";
     ctx.stroke();
 
-    drawVerticalText(ctx, textEl.innerText.trim(), x, y, w, h, cs.fontFamily, parseFloat(cs.fontSize) * scale);
+    const fill = COLORS[b.dataset.textColor] || COLORS.black;
+    const outline = (b.dataset.outline && b.dataset.outline !== "none") ? (COLORS[b.dataset.outline] || COLORS.white) : null;
+    const outlineW = outline ? outlineWidthFor(parseFloat(cs.fontSize)) * scale : 0;
+    drawVerticalText(ctx, textEl.innerText.trim(), x, y, w, h, cs.fontFamily, parseFloat(cs.fontSize) * scale, fill, outline, outlineW);
   });
 
   canvas.toBlob((blob) => {
@@ -393,12 +422,22 @@ function exportPNG() {
 }
 
 // 縦書きテキスト（編集画面に合わせる：列間1.1em／文字送り1em／アタマ揃え／inset 12%/16%）
-function drawVerticalText(ctx, text, x, y, w, h, fontFamily, fontPx) {
+function drawVerticalText(ctx, text, x, y, w, h, fontFamily, fontPx, fillColor, outlineColor, outlineW) {
   if (!text) return;
-  ctx.fillStyle = "#1a1a1a";
+  fillColor = fillColor || "#1a1a1a";
   ctx.font = `600 ${fontPx}px ${fontFamily}`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  ctx.lineJoin = "round";
+  const drawChar = (ch, px, py) => {
+    ctx.save();
+    ctx.translate(px, py);
+    if (VERT_ROTATE.has(ch)) ctx.rotate(Math.PI / 2);
+    if (outlineColor) { ctx.strokeStyle = outlineColor; ctx.lineWidth = outlineW * 2; ctx.strokeText(ch, 0, 0); }
+    ctx.fillStyle = fillColor;
+    ctx.fillText(ch, 0, 0);
+    ctx.restore();
+  };
   const colSpacing = fontPx * 1.1, charH = fontPx * 1.0;
   const innerTop = y + h * 0.12 + charH; // 入力開始を1文字分下げる
   const innerH = h * 0.76 - charH;
@@ -414,14 +453,7 @@ function drawVerticalText(ctx, text, x, y, w, h, fontFamily, fontPx) {
   let colX = cx + (cols.length - 1) * colSpacing / 2;
   for (const col of cols) {
     let chY = innerTop + charH / 2;
-    for (const ch of col) {
-      if (VERT_ROTATE.has(ch)) {
-        ctx.save(); ctx.translate(colX, chY); ctx.rotate(Math.PI / 2); ctx.fillText(ch, 0, 0); ctx.restore();
-      } else {
-        ctx.fillText(ch, colX, chY);
-      }
-      chY += charH;
-    }
+    for (const ch of col) { drawChar(ch, colX, chY); chY += charH; }
     colX -= colSpacing;
   }
 }
@@ -446,6 +478,7 @@ document.getElementById("btn-layout-save").addEventListener("click", () => {
     fw: b.offsetWidth / sw, fh: b.offsetHeight / sh,
     shape: b.dataset.shape, tail: b.dataset.tail,
     fontKey: b.dataset.fontKey, fontPx: +b.dataset.fontPx, opacity: +b.dataset.opacity,
+    textColor: b.dataset.textColor, outline: b.dataset.outline,
     text: b.querySelector(".bubble-text").innerText
   }));
   let image;
@@ -476,7 +509,7 @@ document.getElementById("layout-input").addEventListener("change", (e) => {
       addBubble({
         x: bd.fx * sw, y: bd.fy * sh, w: bd.fw * sw, h: bd.fh * sh,
         shape: bd.shape, tail: bd.tail, fontKey: bd.fontKey, fontPx: bd.fontPx,
-        opacity: bd.opacity, text: bd.text
+        opacity: bd.opacity, textColor: bd.textColor, outline: bd.outline, text: bd.text
       });
     }
     selectBubble(null);
