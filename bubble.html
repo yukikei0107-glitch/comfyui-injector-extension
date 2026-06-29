@@ -41,6 +41,8 @@
   .tailpad { display: grid; grid-template-columns: repeat(2, 26px); grid-auto-rows: 23px; gap: 3px; }
   .tailbtn { padding: 0 !important; width: 26px; height: 23px; font-size: 13px; background: #45475a !important; }
   .tailbtn.active { background: #f9e2af !important; color: #1e1e2e !important; }
+  .tailbtn:disabled { opacity: .3; cursor: not-allowed; }
+  .zbtn { padding: 0 !important; width: 26px; height: 23px; font-size: 13px; background: #45475a !important; }
   #hint { font-size: 11px; color: #6c7086; margin-left: auto; max-width: 240px; line-height: 1.5; }
   #stage-wrap {
     flex: 1; overflow: auto; padding: 20px; display: flex;
@@ -102,8 +104,9 @@
         <select id="bubble-shape">
           <option value="ellipse">楕円</option>
           <option value="round">角丸</option>
+          <option value="square">真四角(尾なし)</option>
           <option value="cloud">もくもく</option>
-          <option value="spike">ギザギザ</option>
+          <option value="spike">ギザギザ(尾なし)</option>
         </select>
       </div>
       <div class="sub">
@@ -135,6 +138,13 @@
           <option value="0.25">25%</option>
           <option value="0">透明(枠のみ)</option>
         </select>
+      </div>
+      <div class="sub">
+        <span>重なり</span>
+        <button class="zbtn" id="z-front" title="最前面">⤒</button>
+        <button class="zbtn" id="z-up" title="前へ">↑</button>
+        <button class="zbtn" id="z-down" title="後へ">↓</button>
+        <button class="zbtn" id="z-back" title="最背面">⤓</button>
       </div>
     </div>
     <span id="hint">D&D/⌘V で画像 ／ ダブルクリックで文字編集 ／ Delete削除・矢印で移動・⌘D複製</span>

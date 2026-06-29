@@ -25,41 +25,57 @@ const VERT_ROTATE = new Set(
 );
 
 const TAIL_DEG = { br: 58, bl: 122, tr: 302, tl: 238 }; // しっぽの基準角（y下向き）
+const NO_TAIL = new Set(["spike", "square"]);            // しっぽを付けない形
+const hasTail = (shape) => !NO_TAIL.has(shape);
+
+// しっぽの向き角（ラジアン）。角丸は弧ではなく直線辺に出すため、上下辺寄りの角度にする
+function tailAngle(w, h, shape, tail) {
+  if (shape === "round") {
+    const vy = (tail === "br" || tail === "bl") ? 1 : -1;  // 下辺 or 上辺
+    const hx = (tail === "br" || tail === "tr") ? 1 : -1;  // 右寄り or 左寄り
+    return Math.atan2(vy * h * 0.5, hx * w * 0.28);        // 直線辺上のオフセット点へ向く角
+  }
+  return (TAIL_DEG[tail] != null ? TAIL_DEG[tail] : TAIL_DEG.br) * Math.PI / 180;
+}
 
 const defaults = { shape: "ellipse", tail: "br", fontKey: "kyokasho", fontPx: 20, opacity: 1 };
 
 // ===== 形ごとの輪郭（中心基準の閉じた多角形・しっぽ無し） =====
+// 全周をまんべんなく（角度一様に）サンプリングする。こうすると、しっぽが
+// どの方向でも輪郭上に必ず点があり、正しい位置から生える。
 function shapeOutline(w, h, b, shape) {
   const cx = w / 2, cy = h / 2;
   const rx = Math.max(1, w / 2 - b / 2), ry = Math.max(1, h / 2 - b / 2);
+  const N = 180; // spikes*2(=36) の倍数。ギザギザの頂点が揃う
   const pts = [];
-  if (shape === "round") {
-    const x = b / 2, y = b / 2, W = w - b, H = h - b, r = Math.min(W, H) * 0.2, seg = 8;
-    const corners = [
-      [x + W - r, y + r, -Math.PI / 2, 0],
-      [x + W - r, y + H - r, 0, Math.PI / 2],
-      [x + r, y + H - r, Math.PI / 2, Math.PI],
-      [x + r, y + r, Math.PI, Math.PI * 1.5]
-    ];
-    for (const [ccx, ccy, a0, a1] of corners)
-      for (let i = 0; i <= seg; i++) { const t = a0 + (a1 - a0) * i / seg; pts.push([ccx + r * Math.cos(t), ccy + r * Math.sin(t)]); }
-  } else if (shape === "cloud") {
-    const bumps = 11, amp = 0.07, N = 160;
-    for (let i = 0; i < N; i++) {
-      const t = i / N * 2 * Math.PI;
-      const k = 1 + amp * Math.cos(bumps * t);
-      pts.push([cx + rx * k * Math.cos(t), cy + ry * k * Math.sin(t)]);
+  for (let i = 0; i < N; i++) {
+    const th = i / N * 2 * Math.PI;
+    const c = Math.cos(th), s = Math.sin(th);
+    let x, y;
+    if (shape === "round") {
+      // スーパー楕円（角丸四角）。直線辺もサンプリングされる
+      const n = 4.5;
+      const t = 1 / Math.pow(Math.pow(Math.abs(c) / rx, n) + Math.pow(Math.abs(s) / ry, n), 1 / n);
+      x = cx + t * c; y = cy + t * s;
+    } else if (shape === "cloud") {
+      const er = (rx * ry) / Math.sqrt((ry * c) ** 2 + (rx * s) ** 2);
+      const k = 1 + 0.07 * Math.cos(11 * th); // もくもく
+      x = cx + er * k * c; y = cy + er * k * s;
+    } else if (shape === "spike") {
+      const spikes = 18;
+      const phase = ((th * spikes / Math.PI) % 2 + 2) % 2;
+      const tri = phase < 1 ? phase : 2 - phase; // 三角波（ギザギザの直線）
+      const er = (rx * ry) / Math.sqrt((ry * c) ** 2 + (rx * s) ** 2);
+      const frac = 0.78 + 0.22 * tri;
+      x = cx + er * frac * c; y = cy + er * frac * s;
+    } else if (shape === "square") {
+      // 真四角（鋭角）。各辺までの距離の最小
+      const r = Math.min(rx / Math.abs(c), ry / Math.abs(s));
+      x = cx + r * c; y = cy + r * s;
+    } else { // ellipse
+      x = cx + rx * c; y = cy + ry * s;
     }
-  } else if (shape === "spike") {
-    const spikes = 18;
-    for (let i = 0; i < spikes * 2; i++) {
-      const t = i / (spikes * 2) * 2 * Math.PI;
-      const rr = (i % 2 === 0) ? 1 : 0.8;
-      pts.push([cx + rx * rr * Math.cos(t), cy + ry * rr * Math.sin(t)]);
-    }
-  } else { // ellipse
-    const N = 84;
-    for (let i = 0; i < N; i++) { const t = i / N * 2 * Math.PI; pts.push([cx + rx * Math.cos(t), cy + ry * Math.sin(t)]); }
+    pts.push([x, y]);
   }
   return pts;
 }
@@ -67,8 +83,9 @@ function shapeOutline(w, h, b, shape) {
 // 形＋しっぽの輪郭。輪郭の中で「しっぽ方向の口元」を先端(tip)に置き換える
 function bubbleOutlinePoints(w, h, border, shape, tail) {
   const base = shapeOutline(w, h, border, shape);
+  if (!hasTail(shape)) return base; // ギザギザ・真四角はしっぽ無し
   const cx = w / 2, cy = h / 2;
-  const am = (TAIL_DEG[tail] != null ? TAIL_DEG[tail] : TAIL_DEG.br) * Math.PI / 180;
+  const am = tailAngle(w, h, shape, tail);
   const spread = 8 * Math.PI / 180;
   const inMouth = (p) => {
     let d = Math.atan2(p[1] - cy, p[0] - cx) - am;
@@ -90,7 +107,7 @@ function bubbleOutlinePoints(w, h, border, shape, tail) {
   if (!inserted) out.push(tip);
   return out;
 }
-const strokeJoin = (shape) => (shape === "spike" ? "miter" : "round");
+const strokeJoin = (shape) => (shape === "spike" || shape === "square" ? "miter" : "round");
 
 // ===== 画像読み込み =====
 function loadImageFromSrc(src) {
@@ -163,7 +180,11 @@ function syncToolbar() {
   fontFamilySel.value = selected.dataset.fontKey;
   fontSizeSel.value = selected.dataset.fontPx;
   fillOpacitySel.value = selected.dataset.opacity;
-  tailBtns.forEach(btn => btn.classList.toggle("active", btn.dataset.tail === selected.dataset.tail));
+  const tailOn = hasTail(selected.dataset.shape);
+  tailBtns.forEach(btn => {
+    btn.disabled = !tailOn;
+    btn.classList.toggle("active", tailOn && btn.dataset.tail === selected.dataset.tail);
+  });
 }
 
 function selectBubble(b) {
@@ -173,7 +194,7 @@ function selectBubble(b) {
   syncToolbar();
 }
 
-shapeSel.addEventListener("change", () => { if (!selected) return; selected.dataset.shape = defaults.shape = shapeSel.value; renderShape(selected); });
+shapeSel.addEventListener("change", () => { if (!selected) return; selected.dataset.shape = defaults.shape = shapeSel.value; renderShape(selected); syncToolbar(); });
 tailBtns.forEach(btn => btn.addEventListener("click", () => {
   if (!selected) return;
   selected.dataset.tail = defaults.tail = btn.dataset.tail;
@@ -182,6 +203,22 @@ tailBtns.forEach(btn => btn.addEventListener("click", () => {
 fontFamilySel.addEventListener("change", () => { if (!selected) return; selected.dataset.fontKey = defaults.fontKey = fontFamilySel.value; applyFont(selected); });
 fontSizeSel.addEventListener("change", () => { if (!selected) return; selected.dataset.fontPx = defaults.fontPx = fontSizeSel.value; applyFont(selected); });
 fillOpacitySel.addEventListener("change", () => { if (!selected) return; selected.dataset.opacity = defaults.opacity = fillOpacitySel.value; renderShape(selected); });
+
+// 重なり順（DOMの並び＝重なり順。後の要素ほど前面）
+const getBubbles = () => [...stage.querySelectorAll(".bubble")];
+document.getElementById("z-front").addEventListener("click", () => { if (selected) stage.appendChild(selected); });
+document.getElementById("z-back").addEventListener("click", () => {
+  if (!selected) return; const bs = getBubbles();
+  if (bs[0] !== selected) stage.insertBefore(selected, bs[0]);
+});
+document.getElementById("z-up").addEventListener("click", () => {
+  if (!selected) return; const bs = getBubbles(); const i = bs.indexOf(selected);
+  if (i < bs.length - 1) stage.insertBefore(bs[i + 1], selected);
+});
+document.getElementById("z-down").addEventListener("click", () => {
+  if (!selected) return; const bs = getBubbles(); const i = bs.indexOf(selected);
+  if (i > 0) stage.insertBefore(selected, bs[i - 1]);
+});
 
 // ===== 吹き出しの追加・操作 =====
 document.getElementById("btn-add").addEventListener("click", () => {
