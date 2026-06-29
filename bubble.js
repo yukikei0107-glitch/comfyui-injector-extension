@@ -400,7 +400,8 @@ function drawVerticalText(ctx, text, x, y, w, h, fontFamily, fontPx) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   const colSpacing = fontPx * 1.1, charH = fontPx * 1.0;
-  const innerTop = y + h * 0.12, innerH = h * 0.76;
+  const innerTop = y + h * 0.12 + charH; // 入力開始を1文字分下げる
+  const innerH = h * 0.76 - charH;
   const maxPerCol = Math.max(1, Math.floor(innerH / charH));
   const cols = [];
   for (const para of text.split("\n")) {
