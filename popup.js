@@ -7,7 +7,7 @@ const spinner = document.getElementById("spinner");
 const placeholder = document.getElementById("placeholder");
 const resultImage = document.getElementById("result-image");
 
-const COMFYUI_BASE = "http://100.64.162.109:8188";
+// COMFYUI_BASE は config.js（このスクリプトより前に読み込む）が提供する
 
 function setStatus(msg, isError = false) {
   statusEl.textContent = msg;

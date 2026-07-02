@@ -1,4 +1,4 @@
-const COMFYUI_BASE = "http://100.64.162.109:8188";
+// COMFYUI_BASE は config.js（このスクリプトより前に読み込む）が提供する
 
 // CORSを避けるためbackground.js経由でfetch
 function bgFetch(url, method = "GET", body = null) {
@@ -102,10 +102,33 @@ async function getLiveWorkflow() {
   }
 }
 
+// ===== 生成タイム表示（生成中はリアルタイム更新、完了で確定） =====
+let genTimerId = null;
+function startGenTimer(t0) {
+  const el = document.getElementById("gen-time");
+  if (!el) return;
+  if (genTimerId) clearInterval(genTimerId);
+  el.style.color = "#f9e2af"; // 計測中は黄色
+  const tick = () => { el.textContent = `⏱ ${((performance.now() - t0) / 1000).toFixed(1)}s`; };
+  tick();
+  genTimerId = setInterval(tick, 100);
+}
+function stopGenTimer(t0) {
+  if (genTimerId) { clearInterval(genTimerId); genTimerId = null; }
+  const el = document.getElementById("gen-time");
+  if (el && t0 != null) {
+    el.textContent = `⏱ ${((performance.now() - t0) / 1000).toFixed(1)}s`;
+    el.style.color = "#a6e3a1"; // 確定は緑
+  }
+}
+
 // count 枚を生成する（各回ランダムseedでバリエーション）
 async function generateImages(count = 1) {
   const text = promptInput.value.trim();
   if (!text) { setStatus("プロンプトを入力してください", true); return; }
+
+  const tStart = performance.now(); // ⏱計測開始
+  startGenTimer(tStart); // 画面のタイマーを開始（生成中はカウントアップ）
 
   // 生成前にノードに反映
   await injectPrompt(text);
@@ -157,6 +180,9 @@ async function generateImages(count = 1) {
       }
     }
 
+    console.log(`⏱ 準備（ワークフロー取得＋プロンプト差替）: ${Math.round(performance.now() - tStart)}ms`);
+    const tPrep = performance.now();
+
     // count 回キューに送る（毎回ランダムseed）
     const promptIds = [];
     let lastSeed = 0;
@@ -175,6 +201,9 @@ async function generateImages(count = 1) {
     }
 
     if (!promptIds.length) { setStatus("キューへの送信に失敗しました", true); return; }
+
+    console.log(`⏱ キュー送信（${promptIds.length}件）: ${Math.round(performance.now() - tPrep)}ms`);
+    const tQueued = performance.now();
 
     // エディタ上のseedも最後のものに更新
     const tab = await getComfyTab();
@@ -201,13 +230,15 @@ async function generateImages(count = 1) {
     let doneCount = 0;
     for (let i = 0; i < promptIds.length; i++) {
       setStatus(count > 1 ? `生成中... (${i + 1}/${promptIds.length})` : "生成中...");
-      const ok = await pollForResult(promptIds[i]);
+      const ok = await pollForResult(promptIds[i], i + 1, promptIds.length);
       if (ok) doneCount++;
     }
+    console.log(`⏱ 合計（送信〜全${promptIds.length}枚表示）: ${Math.round(performance.now() - tQueued)}ms ／ ボタン押下からの総時間: ${Math.round(performance.now() - tStart)}ms`);
     setStatus(count > 1 ? `✅ ${doneCount}/${promptIds.length}枚 生成完了！` : "生成完了！");
   } catch (e) {
     setStatus("エラー: " + e.message, true);
   } finally {
+    stopGenTimer(tStart); // タイマー停止＝確定時間を表示
     spinner.style.display = "none";
     setGenButtonsDisabled(false);
   }
@@ -217,9 +248,13 @@ async function generateImages(count = 1) {
 async function generateImage() { return generateImages(1); }
 
 // 指定の promptId の結果画像を待って表示する。成功:true / タイムアウト:false
-async function pollForResult(promptId) {
-  for (let i = 0; i < 120; i++) {
-    await new Promise(r => setTimeout(r, 1000));
+async function pollForResult(promptId, idx = 1, total = 1) {
+  const tPollStart = performance.now();
+  const deadline = Date.now() + 120000; // 最大120秒待つ
+  let first = true;
+  while (Date.now() < deadline) {
+    if (!first) await new Promise(r => setTimeout(r, 300)); // 初回は待たず即チェック、以降は0.3秒間隔
+    first = false;
     const data = await bgFetch(`${COMFYUI_BASE}/history/${promptId}`);
     const entry = data[promptId];
     if (!entry) continue;
@@ -227,15 +262,92 @@ async function pollForResult(promptId) {
       if (nodeOut.images?.length > 0) {
         const img = nodeOut.images[0];
         const imgUrl = `${COMFYUI_BASE}/api/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=${img.type}`;
-        resultImage.src = imgUrl;
-        resultImage.style.display = "block";
-        placeholder.style.display = "none";
+        const pobj = entry.prompt && entry.prompt[2];
+        // ⏱ 生成計算（送信→履歴に画像が出るまで＝ComfyUIのGPU計算時間）
+        console.log(`⏱ [${idx}/${total}] 生成計算（待ち）: ${Math.round(performance.now() - tPollStart)}ms`);
+        // ⏱ 画像の転送・表示（img要素の読み込み完了まで＝Tailscale等のネットワーク転送）
+        const tImg = performance.now();
+        resultImage.addEventListener("load", function onl() {
+          resultImage.removeEventListener("load", onl);
+          console.log(`⏱ [${idx}/${total}] 画像の転送・表示: ${Math.round(performance.now() - tImg)}ms`);
+        }, { once: true });
+        addToGallery(imgUrl, pobj ? extractPositiveFromPrompt(pobj) : ""); // 表示＋ギャラリー末尾に追加
         return true;
       }
     }
   }
   return false;
 }
+
+// ===== 画像ギャラリー（生成履歴を ◀ ▶ で閲覧） =====
+let galleryImages = [];
+let galleryIndex = -1;
+
+function updateImgCounter() {
+  const el = document.getElementById("img-counter");
+  if (el) el.textContent = galleryImages.length ? `${galleryIndex + 1} / ${galleryImages.length}` : "– / –";
+}
+
+function showGalleryAt(i, loadPrompt) {
+  if (i < 0 || i >= galleryImages.length) return;
+  galleryIndex = i;
+  const item = galleryImages[i];
+  spinner.style.display = "none";
+  placeholder.style.display = "none";
+  resultImage.src = item.url;
+  resultImage.style.display = "block";
+  // ◀▶で手動閲覧したときだけ、その画像のプロンプトを欄へ読み込む
+  if (loadPrompt && item.prompt != null) promptInput.value = item.prompt;
+  updateImgCounter();
+}
+
+function addToGallery(url, prompt) {
+  galleryImages.push({ url, prompt: prompt || "" });
+  showGalleryAt(galleryImages.length - 1, false); // 生成時はプロンプト欄を上書きしない
+}
+
+async function loadGalleryFromHistory(showLatest) {
+  try {
+    const history = await bgFetch(`${COMFYUI_BASE}/history`);
+    const items = [];
+    for (const pid of Object.keys(history)) {
+      const entry = history[pid];
+      const pobj = entry.prompt && entry.prompt[2];
+      const ptext = pobj ? extractPositiveFromPrompt(pobj) : ""; // 画像ごとのプロンプトを先読み
+      const outs = entry.outputs || {};
+      for (const nodeOut of Object.values(outs)) {
+        for (const img of (nodeOut.images || [])) {
+          const type = img.type || "output";
+          if (type !== "output") continue; // 一時プレビュー等は除外
+          items.push({
+            url: `${COMFYUI_BASE}/api/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=${type}`,
+            prompt: ptext
+          });
+        }
+      }
+    }
+    galleryImages = items;
+    galleryIndex = items.length - 1;
+    if (showLatest && items.length) showGalleryAt(items.length - 1, false);
+    else updateImgCounter();
+  } catch (e) { /* ComfyUI未接続など */ }
+}
+
+document.getElementById("btn-img-prev").addEventListener("click", () => { if (galleryIndex > 0) showGalleryAt(galleryIndex - 1, true); });
+document.getElementById("btn-img-next").addEventListener("click", () => { if (galleryIndex < galleryImages.length - 1) showGalleryAt(galleryIndex + 1, true); });
+document.getElementById("btn-img-refresh").addEventListener("click", () => loadGalleryFromHistory(true));
+
+// 矢印キーで前後（テキスト入力中は無効）
+document.addEventListener("keydown", (e) => {
+  const ae = document.activeElement;
+  const tag = ae && ae.tagName;
+  if (tag === "TEXTAREA" || tag === "INPUT" || (ae && ae.isContentEditable)) return;
+  if (e.key === "ArrowLeft" && galleryIndex > 0) { e.preventDefault(); showGalleryAt(galleryIndex - 1, true); }
+  else if (e.key === "ArrowRight" && galleryIndex < galleryImages.length - 1) { e.preventDefault(); showGalleryAt(galleryIndex + 1, true); }
+});
+
+// 起動時に履歴を読み込み、最新を表示（接続先の読み込み完了を待つ）
+comfyBaseReady.then(() => loadGalleryFromHistory(true));
 
 async function loadCurrentPrompt() {
   const tab = await getComfyTab();
@@ -402,6 +514,7 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(loadCurrentPrompt, 800);
   initDictPanel();
   loadTags().then(() => initSuggest("prompt-input", "suggest-box"));
+  initServerSetting();
 
   // ローカルフォルダボタン：パスをクリップボードにコピー（Finderの ⌘⇧G で開ける）
   const btnFolderLocal = document.getElementById("btn-folder-local");
@@ -418,6 +531,23 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 });
+
+// SMBフォルダリンクを、設定中の ComfyUI ホスト名に追従させる
+// （接続先URLの編集は辞書画面の「🖥 ComfyUIサーバー」で行う）
+function initServerSetting() {
+  const folderLink = document.getElementById("btn-folder");
+  const syncFolderLink = () => {
+    if (!folderLink) return;
+    try {
+      folderLink.href = `smb://${new URL(COMFYUI_BASE).hostname}/Text2Img`;
+    } catch (e) { /* URL不正時は据え置き */ }
+  };
+  comfyBaseReady.then(syncFolderLink);
+  // 辞書画面などで接続先が変更されたらリンクも更新
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.comfyui_base) syncFolderLink();
+  });
+}
 
 // 辞書パネル
 async function loadDictData() {

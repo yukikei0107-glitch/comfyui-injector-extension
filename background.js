@@ -1,4 +1,4 @@
-const COMFYUI_BASE = "http://100.64.162.109:8188";
+importScripts("config.js");
 
 // control.html からのfetchリクエストをプロキシ
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {

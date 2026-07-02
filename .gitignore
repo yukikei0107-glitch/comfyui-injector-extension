@@ -1,0 +1,6 @@
+.claude/settings.local.json
+.DS_Store
+
+# デバッグ中に作った予備バックアップ（ディスク上には残すがリポジトリには入れない）
+RESTORE_READY.json
+SAFE_BACKUP_*.json

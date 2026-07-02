@@ -308,7 +308,7 @@
         </div>
         <div class="status" id="status"></div>
         <div class="btn-row">
-          <a href="smb://100.64.162.109/Text2Img" id="btn-folder">📁 Text2Img フォルダを開く</a>
+          <a href="#" id="btn-folder">📁 Text2Img フォルダを開く</a>
           <a href="#" id="btn-folder-local" data-path="/Users/yuki_kei/Desktop/４kリサイズ済/PNGリセット" title="クリックでパスをコピー（Finderで ⌘⇧G に貼り付け）">🖼 PNGリセット（パスをコピー）</a>
         </div>
       </div>
@@ -322,10 +322,18 @@
             <img id="result-image" alt="生成画像">
           </div>
         </div>
+        <div id="img-nav" style="flex:0 0 auto;display:flex;gap:8px;align-items:center;justify-content:center;">
+          <button id="btn-img-prev" title="前の画像（←）" style="padding:6px 14px;background:#45475a;color:#cdd6f4;border:none;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">◀</button>
+          <span id="img-counter" style="font-size:12px;color:#a6adc8;min-width:64px;text-align:center;">– / –</span>
+          <button id="btn-img-next" title="次の画像（→）" style="padding:6px 14px;background:#45475a;color:#cdd6f4;border:none;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">▶</button>
+          <button id="btn-img-refresh" title="履歴を再読込" style="padding:6px 10px;background:#313244;color:#cdd6f4;border:none;border-radius:8px;font-size:13px;cursor:pointer;">🔄</button>
+          <span id="gen-time" title="生成にかかった時間" style="font-size:12px;color:#a6e3a1;min-width:72px;text-align:center;font-variant-numeric:tabular-nums;"></span>
+        </div>
       </div>
 
     </div>
   </div>
+  <script src="config.js"></script>
   <script src="control.js"></script>
 </body>
 </html>

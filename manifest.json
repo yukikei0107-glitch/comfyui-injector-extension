@@ -1,5 +1,6 @@
 {
   "manifest_version": 3,
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs9a30QAuPZ1I9pPFhlPH6g460CvsExCp262yBcoLebA1427HqVbkCFs3fySvEOcPfiVzAV5BMiSpcpAKfhxB35H1qPElaIfmXjEqNQ8faHcaB+YYZja+Um9ktAYv8bTq4jbaVlkFxFAVDrU+j5rlXA3AmXOQc55dCl9HlqckD991o6Pd4UqScn1xIEZaDzY+7tpWkgkB09hVI3ayRdXYPQzHhinxVJCZO0PuTTLW6niQCIKXrxTpsCGFEIQixfrppvGX6yq4YNrAJzbxrBbC1qJFxSlRhnKRLSb/l2py7CZD1+ZjTpTXBRJ2p4WxPKlbWJN80oRxB5KvLsM8w8ky8wIDAQAB",
   "name": "ComfyUI プロンプト注入",
   "version": "2.0",
   "description": "ComfyUIのプロンプト入力と画像生成を専用タブで操作します",
@@ -10,12 +11,12 @@
     "scripting",
     "tabs",
     "contextMenus",
-    "storage"
+    "storage",
+    "unlimitedStorage"
   ],
   "host_permissions": [
-    "http://100.64.162.109:8188/*",
-    "http://localhost/*",
-    "http://127.0.0.1/*"
+    "http://*/*",
+    "https://*/*"
   ],
   "action": {},
   "background": {

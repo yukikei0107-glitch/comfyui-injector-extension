@@ -21,17 +21,19 @@ ComfyUI のプロンプト入力と画像生成をブラウザの専用タブで
 
 ## 設定
 
-[`manifest.json`](manifest.json) の `host_permissions` に ComfyUI サーバーの URL を設定してください。
+ComfyUI サーバーの URL は拡張機能内で切り替えられます。デフォルト値は [`config.js`](config.js) の `DEFAULT_COMFYUI_BASE` に定義されており、そのまま使う場合は設定不要です。
 
-```json
-"host_permissions": [
-  "http://<ComfyUIのIPアドレス>:8188/*"
-]
-```
+別のサーバーに向けたいときは:
 
-また [`background.js`](background.js) と [`popup.js`](popup.js) 内の `COMFYUI_BASE` も同じ URL に合わせてください。
+1. 拡張機能のプロンプト辞書画面（dict.html）を開く
+2. 左の **🖥 ComfyUIサーバー** 欄（⚙️ AIバックエンドの下）に `http://<ComfyUIのIPアドレス>:8188` を入力
+3. 入力欄からフォーカスを外すと保存され、即座に全画面へ反映されます
 
-> **注意：** デフォルトのソースコードには特定の IP アドレスがハードコードされています。このまま公開リポジトリにプッシュすると IP アドレスが外部に漏れます。上記の URL を自分の環境に書き換えてからコミットしてください。
+設定値は `chrome.storage.local` の `comfyui_base` に保存され、全画面（コントロール・履歴・ポップアップ・バックグラウンド）で共有されます。
+
+> **公開リポジトリに出す場合**は [`config.js`](config.js) の `DEFAULT_COMFYUI_BASE` を `http://localhost:8188` 等に変更してから push してください（デフォルト値に自分のサーバー IP が入っているため）。
+
+`host_permissions` は任意のサーバーに接続できるよう `http://*/*` と `https://*/*` を許可しています。特定ホストのみに制限したい場合は [`manifest.json`](manifest.json) を編集してください。
 
 ## 動作環境
 

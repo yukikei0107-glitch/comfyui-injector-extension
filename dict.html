@@ -232,6 +232,15 @@
         <div id="llm-status" style="font-size:9px;color:#6c7086;text-align:center;padding:2px;">未接続</div>
       </div>
 
+      <!-- ComfyUIサーバー -->
+      <div class="panel-title">🖥 ComfyUIサーバー</div>
+      <div style="margin-bottom:10px;padding:8px;background:#313244;border-radius:4px;">
+        <div style="display:flex;gap:4px;">
+          <input type="text" id="comfy-base-input" placeholder="http://localhost:8188" spellcheck="false" autocomplete="off" style="flex:1;padding:4px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:10px;" />
+        </div>
+        <div id="comfy-base-status" style="font-size:9px;color:#6c7086;text-align:center;padding:2px;">画像生成・履歴の接続先</div>
+      </div>
+
       <!-- キーワード変換タイトル -->
       <div class="panel-title" style="margin-top:12px;">🔤 キーワード変換</div>
 
@@ -292,11 +301,19 @@
       <!-- データ管理（普段は折りたたみ） -->
       <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;">
 
+        <!-- 永久保存（同梱データへ焼き込み）：常時表示 -->
+        <div style="display:flex;gap:6px;align-items:center;background:#181825;padding:6px 8px;border-radius:6px;">
+          <span style="font-size:11px;color:#bac2de;flex:0 0 auto;">📌 永久保存</span>
+          <button class="iebtn iebtn-purple" id="btn-export-bundle" style="flex:0 0 auto;width:auto;">同梱用に書き出す</button>
+          <span style="font-size:10px;color:#6c7086;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">dict_data.js を拡張フォルダに上書き→リロード</span>
+        </div>
+
         <!-- 自動保存：常時表示（よく見るので） -->
         <div style="display:flex;gap:6px;align-items:center;background:#181825;padding:6px 8px;border-radius:6px;">
           <span style="font-size:11px;color:#bac2de;flex:0 0 auto;">💽 自動保存</span>
           <button class="iebtn" id="btn-autosave-set" style="flex:0 0 auto;width:auto;">保存先を設定</button>
           <button class="iebtn iebtn-pink" id="btn-autosave-off" style="flex:0 0 auto;width:auto;display:none;">🔴 自動保存を解除</button>
+          <button class="iebtn" id="btn-load-from-file" style="flex:0 0 auto;width:auto;">📂 ファイルから読込</button>
           <span id="autosave-status" style="font-size:10px;color:#6c7086;flex:1;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">未設定</span>
         </div>
 
@@ -333,6 +350,8 @@
   </div>
 
   <div id="toast" style="position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:#a6e3a1;color:#1e1e2e;padding:10px 18px;border-radius:8px;font-size:13px;font-weight:bold;box-shadow:0 4px 16px rgba(0,0,0,0.4);opacity:0;pointer-events:none;transition:opacity 0.2s, transform 0.2s;z-index:9999;"></div>
+  <script src="config.js"></script>
+  <script src="dict_data.js"></script>
   <script src="dict.js"></script>
 </body>
 </html>

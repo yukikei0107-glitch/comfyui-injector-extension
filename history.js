@@ -1,4 +1,4 @@
-const COMFYUI_BASE = "http://100.64.162.109:8188";
+// COMFYUI_BASE は config.js（このスクリプトより前に読み込む）が提供する
 const grid = document.getElementById("grid");
 const statusEl = document.getElementById("status");
 
@@ -151,4 +151,4 @@ async function loadHistory() {
 }
 
 document.getElementById("btn-refresh").addEventListener("click", loadHistory);
-loadHistory();
+comfyBaseReady.then(loadHistory);

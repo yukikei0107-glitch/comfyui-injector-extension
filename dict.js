@@ -1,5 +1,9 @@
 const STORAGE_KEY = "prompt_dict";
 
+// 起動確認（このログが出れば新コードが動いている証拠）
+console.log("%c[辞書] dict.js v3 起動（保存検証版）", "color:#89b4fa;font-weight:bold");
+chrome.storage.local.getBytesInUse(null, b => console.log(`[辞書] 起動時ストレージ使用量: ${b.toLocaleString()} bytes`));
+
 // 画面下に一瞬出る通知（トースト）
 let _toastTimer = null;
 function toast(msg, color = "#a6e3a1") {
@@ -31,15 +35,27 @@ async function loadDict() {
   });
 }
 
-// データ保存
+// データ保存（成功:true / 失敗:false）
+// ※ 以前は chrome.runtime.lastError を見ておらず、保存失敗でも成功扱いになっていた
 async function saveDict(dict) {
-  return new Promise(resolve => {
+  const ok = await new Promise(resolve => {
     chrome.storage.local.set({ [STORAGE_KEY]: dict }, () => {
-      // 自動保存先が設定されていれば実ファイルにも上書き（best-effort）
-      autoSaveToFile(dict);
-      resolve();
+      if (chrome.runtime.lastError) {
+        const msg = chrome.runtime.lastError.message || "不明なエラー";
+        console.error("[辞書] 内部ストレージへの保存に失敗:", msg);
+        chrome.storage.local.getBytesInUse(null, b => console.error(`[辞書] 現在の使用量: ${b} bytes / エントリ数: ${Object.keys(dict).length}`));
+        setAutosaveStatus("⚠️ 保存失敗: " + msg, "#f38ba8");
+        resolve(false);
+        return;
+      }
+      chrome.storage.local.getBytesInUse(null, b => console.log(`[辞書] 保存OK: ${Object.keys(dict).length}件 / 使用量 ${b.toLocaleString()} bytes`));
+      resolve(true);
     });
   });
+  if (!ok) return false;
+  // 自動保存先が設定されていれば実ファイルにも書き込む（検証前に完了させるため await）
+  await autoSaveToFile(dict);
+  return true;
 }
 
 // ===== 自動ファイル保存（File System Access API） =====
@@ -83,6 +99,12 @@ function setAutosaveStatus(msg, color) {
 // 実ファイルへ書き込む（バックアップ形式：辞書＋タグ候補＋日時。そのまま「復元」で戻せる）
 async function autoSaveToFile(dict) {
   if (!autoSaveHandle) return;
+  const newCount = dict ? Object.keys(dict).length : 0;
+  // 空（0件）の辞書でファイルを上書きしない＝全消し事故を防ぐ安全装置
+  if (newCount === 0) {
+    console.warn("[辞書] 空の辞書のためファイル書き込みをスキップ（バックアップ保護）");
+    return;
+  }
   try {
     let perm = await autoSaveHandle.queryPermission({ mode: "readwrite" });
     if (perm !== "granted") {
@@ -90,6 +112,19 @@ async function autoSaveToFile(dict) {
       perm = await autoSaveHandle.requestPermission({ mode: "readwrite" });
       if (perm !== "granted") { setAutosaveStatus("⚠️ 書き込み権限がありません（保存先を再設定してください）", "#f9e2af"); return; }
     }
+    // 既存ファイルの件数を読み、件数が激減する書き込みは拒否（ストレージ破損時の全消しを防ぐ）
+    try {
+      const curFile = await autoSaveHandle.getFile();
+      const curText = await curFile.text();
+      if (curText.trim()) {
+        const curCount = Object.keys((JSON.parse(curText).prompt_dict) || {}).length;
+        if (curCount >= 50 && newCount < curCount * 0.5) {
+          console.warn(`[辞書] 件数が激減(${curCount}→${newCount})のため保存を中止（ファイル保護）`);
+          setAutosaveStatus(`🛑 件数が急減(${curCount}→${newCount})のため保存中止。復元してください`, "#f38ba8");
+          return;
+        }
+      }
+    } catch (e) { /* 既存が読めない/新規ファイルならそのまま書き込む */ }
     // タグ候補も取得してバックアップ形式で書き出す（btn-backupと同じ構造）
     const tags = await new Promise(resolve => {
       chrome.storage.local.get("tag_suggestions", d => resolve(d["tag_suggestions"] || []));
@@ -123,26 +158,125 @@ async function chooseAutosaveFile() {
     });
     autoSaveHandle = handle;
     await idbSet("handle", handle);
-    setAutosaveStatus(`設定完了：${handle.name}（以後、追加・編集で自動上書き）`, "#a6e3a1");
-    // 設定直後に現在の辞書を書き出しておく
-    await autoSaveToFile(await loadDict());
+    setAutosaveStatus(`設定完了：${handle.name}`, "#a6e3a1");
+    // 既存ファイルに辞書があればマージして取り込む（空の辞書でファイルを上書きする事故を防ぐ）
+    await syncFromFile(true);
   } catch (e) {
     if (e.name !== "AbortError") alert("保存先の設定に失敗しました: " + e.message);
   }
 }
 
-// 起動時：保存済みの handle を復元（保存用のみ。ファイルからの自動読み込みはしない）
+// ファイルの辞書を読み込み、現在のストレージとマージして正本にする
+// （union：両方のキーを残すので、ストレージが飛んでいてもファイルから復活し、
+//  逆にファイルに無い最近の追加も失わない。＝これで「リロードで消える」を根絶）
+async function syncFromFile(interactive) {
+  if (!autoSaveHandle) return false;
+  try {
+    let perm = await autoSaveHandle.queryPermission({ mode: "readwrite" });
+    if (perm !== "granted") {
+      if (!interactive) return false; // 起動時（クリック無し）は権限要求できないので静かに諦める
+      perm = await autoSaveHandle.requestPermission({ mode: "readwrite" });
+      if (perm !== "granted") { setAutosaveStatus("⚠️ 読み込み権限がありません", "#f9e2af"); return false; }
+    }
+    const file = await autoSaveHandle.getFile();
+    const text = await file.text();
+    let fileDict = {}, fileTags = null;
+    if (text.trim()) {
+      try { const backup = JSON.parse(text); fileDict = backup.prompt_dict || {}; fileTags = backup.tag_suggestions || null; } catch (e) { fileDict = {}; }
+    }
+    const storeDict = await loadDict();
+    // 値の衝突はストレージ側を優先（最近の編集を尊重）。ファイルにしか無いキーも取り込む
+    const merged = Object.assign({}, fileDict, storeDict);
+    const grew = Object.keys(merged).length;
+    if (grew === 0) { setAutosaveStatus("⚠️ ファイルもストレージも空です", "#f9e2af"); return false; } // 両方空なら何もしない
+    await saveDict(merged); // ストレージ保存＋ファイル書き戻し（両方を最新化）
+    // タグ候補：ストレージが空ならファイルから補完
+    if (fileTags && fileTags.length) {
+      const cur = await new Promise(r => chrome.storage.local.get("tag_suggestions", d => r(d.tag_suggestions)));
+      if (!cur || !cur.length) await chrome.storage.local.set({ tag_suggestions: fileTags });
+    }
+    console.log(`[辞書] ファイル同期: file=${Object.keys(fileDict).length} / storage=${Object.keys(storeDict).length} → 統合 ${grew}件`);
+    await renderList(document.getElementById("filter-input").value);
+    setAutosaveStatus(`✅ ファイルと同期 (${grew}件)`, "#a6e3a1");
+    return true;
+  } catch (e) {
+    console.error("[辞書] ファイル同期に失敗:", e);
+    if (interactive) setAutosaveStatus("⚠️ ファイル読込に失敗: " + e.message, "#f38ba8");
+    return false;
+  }
+}
+
+// 起動時：保存済みの handle を復元し、権限があればファイルから自動読み込み（正本＝ファイル）
 (async () => {
   try {
     const h = await idbGet("handle");
-    if (h) {
-      autoSaveHandle = h;
-      const perm = await h.queryPermission({ mode: "readwrite" });
-      if (perm === "granted") setAutosaveStatus(`✅ 自動保存ON：${h.name}`, "#a6e3a1");
-      else setAutosaveStatus(`🔒 自動保存：${h.name}（最初の追加時に権限確認が出ます）`, "#f9e2af");
+    if (!h) return;
+    autoSaveHandle = h;
+    const perm = await h.queryPermission({ mode: "readwrite" });
+    if (perm === "granted") {
+      setAutosaveStatus(`✅ 自動保存ON：${h.name}`, "#a6e3a1");
+      await syncFromFile(false); // ← リロード後もここでファイルから辞書が復活する
+    } else {
+      // 権限が切れている＝クリックで復活。ボタンを目立たせて促す
+      setAutosaveStatus(`📂 「ファイルから読込」を押すと辞書を復元します：${h.name}`, "#f9e2af");
     }
   } catch (e) {}
 })();
+
+document.getElementById("btn-load-from-file").addEventListener("click", () => {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = ".json";
+  input.onchange = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    let text;
+    try { text = await file.text(); } catch (err) { console.error("[辞書] file.text() 失敗:", err); toast("読込失敗: " + err.message, "#f38ba8"); return; }
+    let fileDict = {}, fileTags = null;
+    try {
+      const backup = JSON.parse(text);
+      fileDict = backup.prompt_dict || {};
+      fileTags = backup.tag_suggestions || null;
+    } catch (err) { console.error("[辞書] JSON.parse 失敗:", err); toast("JSON解析失敗: " + err.message, "#f38ba8"); return; }
+    if (Object.keys(fileDict).length === 0) { toast("ファイルに辞書データがありません", "#f9e2af"); return; }
+    const storeDict = await loadDict();
+    const merged = Object.assign({}, fileDict, storeDict);
+    await saveDict(merged);
+    if (fileTags && fileTags.length) {
+      const cur = await new Promise(r => chrome.storage.local.get("tag_suggestions", d => r(d.tag_suggestions)));
+      if (!cur || !cur.length) await chrome.storage.local.set({ tag_suggestions: fileTags });
+    }
+    await renderList(document.getElementById("filter-input").value);
+    toast(`✅ ファイルから読込完了（${Object.keys(merged).length}件）`, "#a6e3a1");
+  };
+  input.click();
+});
+
+// 📌 永久保存：現在の辞書を同梱用 dict_data.js として書き出す。
+// ダウンロードしたファイルを拡張フォルダに上書き→リロードすれば、新規追加分も
+// 「工場出荷時データ」に固定され、総破損・拡張削除でも全件復活する。
+document.getElementById("btn-export-bundle").addEventListener("click", async () => {
+  const dict = await loadDict();
+  const count = Object.keys(dict).length;
+  if (count === 0) { toast("辞書が空です。書き出しません", "#f38ba8"); return; }
+  const tags = await new Promise(r => chrome.storage.local.get("tag_suggestions", d => r(d["tag_suggestions"] || [])));
+  const header =
+    "// 拡張に同梱した辞書データ（工場出荷時データ）。\n" +
+    "// ストレージが空のとき dict.js が自動でこれを読み込むので、\n" +
+    "// 拡張をリロード/アップデートしてもこの件数分は消えない。\n" +
+    "// 書き出し日時: " + new Date().toLocaleString() + " / " + count + "件\n";
+  const body =
+    "window.__BUNDLED_DICT__ = " + JSON.stringify(dict) + ";\n" +
+    "window.__BUNDLED_TAGS__ = " + JSON.stringify(tags) + ";\n";
+  const blob = new Blob([header + body], { type: "application/javascript" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "dict_data.js";
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`📌 dict_data.js を書き出しました（${count}件）。拡張フォルダに上書きしてリロード`, "#a6e3a1");
+});
 
 document.getElementById("btn-autosave-set").addEventListener("click", chooseAutosaveFile);
 document.getElementById("btn-autosave-off").addEventListener("click", async () => {
@@ -249,6 +383,29 @@ async function convert(ja) {
   }
 }
 
+// 保存した内容を実際に読み直して、本当に入っているか検証する
+// （「保存しました」表示が嘘にならないように。ファイルがあればファイルを正とする）
+async function verifySaved(ja, en) {
+  // 保存先ファイルがあれば、それを読み直して確認（＝一番確実な永続先）
+  if (autoSaveHandle) {
+    try {
+      const perm = await autoSaveHandle.queryPermission({ mode: "readwrite" });
+      if (perm !== "granted") return { ok: false, msg: "⚠️ ファイル権限が切れています。「保存先を設定」で選び直してください" };
+      const f = await autoSaveHandle.getFile();
+      const t = await f.text();
+      const d = t.trim() ? ((JSON.parse(t).prompt_dict) || {}) : {};
+      if (d[ja] === en) return { ok: true, msg: `✅ ファイルに保存を確認（${Object.keys(d).length}件）` };
+      return { ok: false, msg: "⚠️ ファイルに書けていません。「保存先を設定」で選び直してください" };
+    } catch (e) {
+      return { ok: false, msg: "⚠️ ファイル確認に失敗: " + e.message };
+    }
+  }
+  // ファイル未設定なら内部ストレージを読み直して確認
+  const back = await loadDict();
+  if (back[ja] === en) return { ok: true, msg: "✅ 保存しました（内部のみ。保険にファイル保存先の設定を推奨）" };
+  return { ok: false, msg: "⚠️ 保存できていません（内部ストレージに書けていない）" };
+}
+
 // 追加
 async function addEntry() {
   const ja = document.getElementById("add-ja").value.trim();
@@ -257,12 +414,15 @@ async function addEntry() {
 
   const dict = await loadDict();
   dict[ja] = en;
-  await saveDict(dict);
+  const ok = await saveDict(dict);
+  if (!ok) { toast("❌ 保存に失敗しました（コンソールにエラー詳細）", "#f38ba8"); return; }
 
   document.getElementById("add-ja").value = "";
   document.getElementById("add-en").value = "";
   await renderList(document.getElementById("filter-input").value);
-  toast(autoSaveHandle ? `✅ 保存しました（ファイルにも書き込み）` : `✅ 保存しました`);
+  // 実際に読み直して検証してから結果を表示（成功表示を嘘にしない）
+  const v = await verifySaved(ja, en);
+  toast(v.msg, v.ok ? "#a6e3a1" : "#f38ba8");
 }
 
 // イベント
@@ -682,8 +842,30 @@ document.getElementById("restore-file-input").addEventListener("change", async (
   e.target.value = "";
 });
 
+// 拡張に同梱した辞書（dict_data.js）。ストレージが空のときだけ自動で流し込む。
+// ＝拡張をリロード/アップデートしてストレージが飛んでも、同梱分は必ず復活する。
+// （既にデータがある場合は触らないので、手動で消したエントリが復活したりはしない）
+async function seedFromBundleIfEmpty() {
+  try {
+    if (typeof window.__BUNDLED_DICT__ === "undefined") return;
+    const bundled = window.__BUNDLED_DICT__ || {};
+    const bCount = Object.keys(bundled).length;
+    if (bCount === 0) return;
+    const cur = await loadDict();
+    if (Object.keys(cur).length > 0) return; // 既にデータがあれば何もしない
+    await new Promise(r => chrome.storage.local.set({ [STORAGE_KEY]: bundled }, r));
+    if (window.__BUNDLED_TAGS__ && window.__BUNDLED_TAGS__.length) {
+      const t = await new Promise(r => chrome.storage.local.get("tag_suggestions", d => r(d.tag_suggestions)));
+      if (!t || !t.length) await new Promise(r => chrome.storage.local.set({ tag_suggestions: window.__BUNDLED_TAGS__ }, r));
+    }
+    console.log(`%c[辞書] 同梱データから ${bCount.toLocaleString()}件を自動復元`, "color:#a6e3a1;font-weight:bold");
+    setAutosaveStatus(`✅ 同梱データから ${bCount.toLocaleString()}件を復元`, "#a6e3a1");
+  } catch (e) { console.error("[辞書] 同梱データ復元に失敗:", e); }
+}
+
 // 初期描画
 (async () => {
+  await seedFromBundleIfEmpty();
   await renderList();
 })();
 
@@ -737,6 +919,19 @@ backendEl.addEventListener("change", () => {
 });
 urlEl.addEventListener("change", saveLlmConfig);
 modelEl.addEventListener("change", saveLlmConfig);
+
+// ===== ComfyUIサーバー接続先（画像生成・履歴の宛先） =====
+const comfyBaseEl = document.getElementById("comfy-base-input");
+if (comfyBaseEl) {
+  // 保存済みの接続先を反映（config.js が読み込んだ値）
+  comfyBaseReady.then(() => { comfyBaseEl.value = COMFYUI_BASE; });
+  const saveComfyBase = () => {
+    const v = comfyBaseEl.value.trim();
+    if (!v) return;
+    chrome.storage.local.set({ comfyui_base: v });
+  };
+  comfyBaseEl.addEventListener("change", saveComfyBase);
+}
 
 // AI推奨ボタン（dict.html）
 document.getElementById("btn-ai-suggest-dict").addEventListener("click", async () => {
@@ -806,8 +1001,6 @@ document.getElementById("btn-llm-test").addEventListener("click", () => {
 });
 
 
-
-const COMFYUI_BASE = "http://100.64.162.109:8188";
 
 // クリップボードコピー（フォールバック付き／結果ボックス用）
 async function copyText(text) {
