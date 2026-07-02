@@ -250,6 +250,7 @@
           <div style="display:flex;gap:6px;margin-bottom:6px;">
             <button id="tab-dict" style="flex:1;padding:6px;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">📚 辞書</button>
             <button id="tab-settings" style="flex:1;padding:6px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:11px;">📝 翻訳</button>
+            <button id="tab-costume" style="flex:1;padding:6px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:11px;">👗 衣装</button>
           </div>
           
           <!-- 辞書セクション -->
@@ -287,6 +288,23 @@
               </div>
             </div>
           </div>
+          </div>
+
+          <!-- 衣装ガチャセクション -->
+          <div id="costume-section" style="display:none;flex:1;min-height:0;flex-direction:column;gap:6px;overflow-y:auto;">
+            <div style="font-size:12px;color:#89b4fa;font-weight:bold;">👗 衣装ガチャ</div>
+            <select id="costume-theme" style="width:100%;padding:6px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:12px;"></select>
+            <input id="costume-vibe" placeholder="雰囲気(任意) 例: 秋っぽい / セクシー" style="width:100%;padding:6px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:12px;" />
+            <div style="display:flex;gap:4px;">
+              <button id="btn-costume-roll" style="flex:1;padding:8px;background:#f9e2af;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">🎲 全部振る</button>
+              <button id="btn-costume-ai" style="flex:1;padding:8px;background:#a6a1de;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">🤖 AIで考える</button>
+            </div>
+            <div id="costume-slots" style="display:flex;flex-direction:column;gap:4px;"></div>
+            <div id="costume-preview" style="background:#2a2a3e;border:1px solid #45475a;border-radius:4px;padding:8px;font-size:12px;color:#a6e3a1;line-height:1.5;min-height:40px;word-break:break-word;">🎲を押すと衣装を提案します</div>
+            <div style="display:flex;gap:4px;">
+              <button id="btn-costume-insert" style="flex:1;padding:8px;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">✍️ 記入</button>
+              <button id="btn-costume-copy" style="flex:1;padding:8px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">📋 コピー</button>
+            </div>
           </div>
         </div>
       </div>
@@ -334,6 +352,7 @@
     </div>
   </div>
   <script src="config.js"></script>
+  <script src="costume_data.js"></script>
   <script src="control.js"></script>
 </body>
 </html>
