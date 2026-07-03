@@ -10,6 +10,18 @@ window.COSTUME_SLOTS = [
   { key: "accessory",  label: "アクセ" }
 ];
 
+// 過去プロンプトから「服の部分だけ」を抽出するためのキーワード（スロット別）。
+// タグにこれらの語が含まれていたら、そのスロットの衣装タグとみなす。
+// 判定は legwear→shoes→outerwear→head→accessory→main の順（具体的な物を先に）。
+window.COSTUME_KEYWORDS = {
+  legwear: ["thighhighs", "thigh-highs", "pantyhose", "tights", "kneehighs", "knee-highs", "stockings", "socks", "legwear", "zettai ryouiki", "garter", "leg warmers", "leggings"],
+  shoes: ["shoes", "boots", "sneakers", "heels", "loafers", "sandals", "geta", "zori", "okobo", "mary janes", "flip-flops", "barefoot", "slippers", "uwabaki", "footwear", "pumps", "mules"],
+  outerwear: ["jacket", "coat", "cloak", "cape", "mantle", "haori", "bolero", "capelet", "windbreaker", "poncho", "parka", "overcoat", "trenchcoat", "shawl", "stole"],
+  head: ["hat", "cap", "beanie", "headband", "hairband", "ribbon", "hairclip", "hair clip", "hair bow", "hair ornament", "hair flower", "tiara", "circlet", "bonnet", "hood", "visor", "kanzashi", "headdress", "beret", "crown", "hairpin"],
+  accessory: ["gloves", "choker", "necklace", "earrings", "backpack", "bag", "scarf", "sunglasses", "glasses", "belt", "staff", "sword", "parasol", "folding fan", "umbrella", "anklet", "bracelet", "amulet", "necktie", "bowtie", "pendant", "brooch", "wristband", "armband", "collar", "pouch", "purse", "clutch", "spellbook", "water bottle", "sweatband", "swim ring", "beach ball", "name tag"],
+  main: ["shirt", "blouse", "t-shirt", "tshirt", "tee", "sweater", "hoodie", "cardigan", "sweatshirt", "tank", "camisole", "crop", "dress", "gown", "skirt", "shorts", "pants", "jeans", "trousers", "overalls", "serafuku", "uniform", "blazer", "sailor", "kimono", "yukata", "furisode", "hakama", "leotard", "bikini", "swimsuit", "one-piece", "swimwear", "robe", "nightgown", "pajamas", "negligee", "lolita", "armor", "breastplate", "tunic", "corset", "apron", "maid", "bodysuit", "jumpsuit", "buruma", "bloomers", "vest", "jersey", "sleepwear", "loungewear", "outfit"]
+};
+
 window.COSTUME_THEMES = {
   omakase: { label: "🎲 おまかせ", random: true },
 

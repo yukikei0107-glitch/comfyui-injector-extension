@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>衣装ガチャ</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #1e1e2e; color: #cdd6f4;
+      font-family: "Helvetica Neue", sans-serif;
+      overflow: hidden;
+    }
+    .container { display: flex; flex-direction: column; height: 100vh; padding: 14px; gap: 8px; }
+    .title { font-size: 15px; font-weight: bold; color: #89b4fa; flex: 0 0 auto; }
+    .layout { display: flex; gap: 14px; flex: 1; min-height: 0; }
+
+    /* 左：ガチャ（スクロールさせず、パーツ欄だけ内部スクロール） */
+    .left { flex: 0 0 400px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+    /* 右：プレビュー＋ギャラリー */
+    .right { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+
+    .section-label { font-size: 11px; color: #bac2de; font-weight: bold; flex: 0 0 auto; }
+
+    .theme-row { display: flex; flex-wrap: wrap; gap: 5px; flex: 0 0 auto; }
+    .theme-btn {
+      padding: 6px 11px; border: none; border-radius: 20px; cursor: pointer;
+      font-size: 11px; font-weight: bold; background: #313244; color: #cdd6f4; transition: opacity 0.15s;
+    }
+    .theme-btn:hover { opacity: 0.85; }
+    .theme-btn.active { background: #89b4fa; color: #1e1e2e; }
+
+    input[type="text"] {
+      width: 100%; background: #2a2a3e; color: #cdd6f4;
+      border: 1px solid #45475a; border-radius: 8px; padding: 8px 11px; font-size: 12px; outline: none; flex: 0 0 auto;
+    }
+    input[type="text"]:focus { border-color: #89b4fa; }
+
+    .btn {
+      padding: 9px; border: none; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; transition: opacity 0.15s;
+    }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-roll { background: #f9e2af; color: #1e1e2e; }
+    .btn-ai { background: #a6a1de; color: #1e1e2e; }
+    .btn-gen { background: #a6e3a1; color: #1e1e2e; }
+    .btn-send { background: #89b4fa; color: #1e1e2e; }
+    .btn-copy { background: #45475a; color: #cdd6f4; }
+
+    .slots { flex: 1 1 auto; overflow-y: auto; min-height: 60px; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; }
+    .slot {
+      display: flex; align-items: center; gap: 6px;
+      background: #2a2a3e; border: 1px solid #313244; border-radius: 8px; padding: 8px 10px;
+    }
+    .slot .s-label { flex: 0 0 56px; font-size: 11px; color: #bac2de; font-weight: bold; }
+    .slot .s-val { flex: 1; font-size: 12px; color: #cdd6f4; word-break: break-word; }
+    .slot .s-val.empty { color: #45475a; }
+    .slot .s-btn { flex: 0 0 auto; padding: 4px 8px; border: none; border-radius: 6px; cursor: pointer; font-size: 12px; }
+    .s-roll { background: #45475a; color: #cdd6f4; }
+    .s-lock { background: #313244; color: #1e1e2e; }
+    .s-lock.on { background: #f9e2af; }
+
+    .preview {
+      background: #2a2a3e; border: 1px solid #45475a; border-radius: 8px; padding: 9px;
+      font-size: 12px; color: #a6e3a1; line-height: 1.5; word-break: break-word; flex: 0 0 auto; max-height: 78px; overflow-y: auto;
+    }
+    .action-row { display: flex; gap: 6px; flex: 0 0 auto; }
+
+    /* 右上：生成プレビュー画像 */
+    .gen-preview {
+      flex: 1; min-height: 120px; position: relative;
+      background: #2a2a3e; border: 1px solid #313244; border-radius: 8px; overflow: hidden;
+    }
+    /* 画像は枠いっぱいに絶対配置（flex潰れで極小になるのを防ぐ） */
+    .gen-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: none; }
+    .gen-placeholder {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #cdd6f4; font-size: 13px; text-align: center; padding: 20px; line-height: 1.8;
+    }
+    .gen-spinner {
+      display: none; width: 34px; height: 34px; border: 4px solid #45475a; border-top-color: #a6e3a1;
+      border-radius: 50%; animation: spin 0.8s linear infinite; position: absolute;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .gen-caption {
+      position: absolute; left: 8px; bottom: 8px; padding: 3px 8px; border-radius: 6px;
+      background: rgba(0,0,0,0.55); color: #a6e3a1; font-size: 11px; font-variant-numeric: tabular-nums;
+    }
+    .gen-badge {
+      position: absolute; right: 8px; top: 8px; display: none;
+      padding: 3px 10px; border-radius: 6px; background: rgba(203,166,247,0.95); color: #1e1e2e;
+      font-size: 11px; font-weight: bold;
+    }
+
+    /* 右下：参考ギャラリー（横スクロールのフィルムストリップ＝1枚を大きく） */
+    .gallery-head { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+    /* 参考は「1枚ずつ」大きく表示（◀▶で送る＝スクロール不要） */
+    /* 参考：画面下部フル幅のセクション */
+    .ref-section { flex: 0 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+    /* 参考は5枚を横並び。端まで画像で埋める（object-fit: cover） */
+    .ref-row {
+      flex: 0 1 130px; min-height: 60px; position: relative; display: flex; gap: 8px;
+      background: #181825; border-radius: 8px; padding: 6px;
+    }
+    .ref-cell {
+      flex: 1 1 0; min-width: 0; position: relative; background: #11111b;
+      border: 1px solid #313244; border-radius: 6px; overflow: hidden; cursor: pointer;
+    }
+    .ref-cell:hover { border-color: #89b4fa; }
+    .ref-cell img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 28%; }
+    .ref-cell .rc-cap {
+      position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 5px;
+      background: rgba(0,0,0,0.6); color: #cdd6f4; font-size: 9px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ref-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #45475a; font-size: 12px; text-align: center; }
+    .ref-nav { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    .gen-nav { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+    /* 生成エリア：左（大プレビュー・縦ぶち抜き）＋右（保留/お取り置き/3枚） */
+    .gen-area { flex: 1; min-height: 0; display: flex; gap: 10px; }
+    .gen-left { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+    .gen-right { flex: 0 0 190px; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+    .hold-row { flex: 0 0 34px; display: flex; align-items: center; justify-content: center; background: #181825; border-radius: 6px; color: #45475a; font-size: 10px; }
+    /* 生成したもの3枚（一番下・クリックで大プレビューに表示） */
+    .gen3-row { flex: 0 0 100px; display: flex; gap: 6px; }
+    .gen3-cell { flex: 1 1 0; min-width: 0; position: relative; background: #11111b; border: 1px solid #313244; border-radius: 6px; overflow: hidden; cursor: pointer; }
+    .gen3-cell:hover { border-color: #89b4fa; }
+    .gen3-cell.sel { border-color: #a6e3a1; }
+    .gen3-cell img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 28%; }
+    /* ⭐お取り置き：右列の中段を大きめに占有 */
+    .reserve-col { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+    .reserve-strip {
+      flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; overflow-y: auto;
+      background: #181825; border-radius: 6px; padding: 6px;
+    }
+    .reserve-strip::-webkit-scrollbar { width: 6px; }
+    .reserve-strip::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
+    .reserve-cell { position: relative; flex: 0 0 auto; width: 100%; height: 92px; border-radius: 5px; overflow: hidden; cursor: pointer; border: 1px solid #313244; }
+    .reserve-cell:hover { border-color: #f9e2af; }
+    .reserve-cell img { width: 100%; height: 100%; object-fit: cover; object-position: center 24%; }
+    .reserve-cell .rm { position: absolute; top: 0; right: 0; background: rgba(0,0,0,0.65); color: #f38ba8; font-size: 11px; line-height: 1; padding: 1px 4px; }
+    .reserve-empty { color: #45475a; font-size: 10px; padding: 4px; text-align: center; }
+
+    #toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: #a6e3a1; color: #1e1e2e; padding: 10px 18px; border-radius: 8px;
+      font-size: 13px; font-weight: bold; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">👗 衣装ガチャ</div>
+    <div class="layout">
+
+      <!-- 左：ガチャ -->
+      <div class="left">
+        <div class="section-label">テーマ</div>
+        <div class="theme-row" id="theme-row"></div>
+
+        <input type="text" id="costume-vibe" placeholder="雰囲気(任意) 例: 秋っぽい / セクシー" />
+
+        <div style="display:flex;gap:6px;flex:0 0 auto;">
+          <button class="btn btn-roll" id="btn-roll" style="flex:1;">🎲 全部振る</button>
+          <button class="btn btn-ai" id="btn-ai" style="flex:1;">🤖 AIで考える</button>
+        </div>
+
+        <div class="section-label">パーツ（🔍確認 / 🎲振り直し / 🔒固定）</div>
+        <div class="slots" id="slots"></div>
+
+        <div class="section-label">現在の衣装</div>
+        <div class="preview" id="preview">🎲を押すと衣装を提案します</div>
+
+        <div class="action-row">
+          <button class="btn btn-gen" id="btn-gen" style="flex:2;">▶ この衣装で生成</button>
+          <button class="btn btn-send" id="btn-send" style="flex:1;">✍️ 送る</button>
+          <button class="btn btn-copy" id="btn-copy" style="flex:0 0 auto;">📋</button>
+        </div>
+      </div>
+
+      <!-- 右：生成プレビュー（大）＋生成3枚＋お取り置き＋参考 -->
+      <div class="right">
+        <input type="text" id="gen-prompt" placeholder="プレビュー用プロンプト（衣装の前に付く固定部分）" style="flex:0 0 auto;" />
+
+        <div class="gen-area">
+          <!-- 左：大きい簡易プレビュー（縦ぶち抜き）＋ナビ -->
+          <div class="gen-left">
+            <div class="gen-preview" id="gen-preview">
+              <div class="gen-placeholder" id="gen-placeholder">「▶ この衣装で生成」で<br>ここに簡易プレビューが大きく出ます</div>
+              <div class="gen-spinner" id="gen-spinner"></div>
+              <img id="gen-img" alt="プレビュー">
+              <div class="gen-badge" id="gen-badge">⚡ 簡易プレビュー</div>
+              <div class="gen-caption" id="gen-caption"></div>
+            </div>
+            <div class="gen-nav">
+              <button class="btn btn-copy" id="gen-prev" style="flex:0 0 auto;padding:6px 14px;">◀ 古い</button>
+              <span id="gen-counter" style="font-size:11px;color:#a6adc8;min-width:56px;text-align:center;">– / –</span>
+              <button class="btn btn-copy" id="gen-next" style="flex:0 0 auto;padding:6px 14px;">新しい ▶</button>
+              <button class="btn btn-roll" id="btn-reserve" style="flex:1;padding:6px 12px;">⭐ 取り置き</button>
+            </div>
+          </div>
+          <!-- 右：上から〔保留 → お取り置き(大) → 生成3枚〕 -->
+          <div class="gen-right">
+            <div class="hold-row">（この段は保留）</div>
+            <div class="reserve-col">
+              <div class="section-label">⭐ お取り置き</div>
+              <div class="reserve-strip" id="reserve-strip"></div>
+            </div>
+            <div class="gen3-row" id="gen3-row"></div>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- 参考：画面下部にフル幅で（右列を生成エリアで縦ぶち抜きにするため移動）-->
+    <div class="ref-section">
+      <div class="gallery-head">
+        <div class="section-label" style="flex:0 0 auto;">🖼 参考（クリックで衣装を読込）</div>
+        <input type="text" id="gallery-filter" placeholder="🔍 絞り込み" style="flex:1;" />
+        <button class="btn btn-copy" id="btn-gallery-refresh" style="flex:0 0 auto;padding:6px 10px;">🔄</button>
+        <button class="btn btn-copy" id="ref-prev" style="flex:0 0 auto;padding:6px 14px;">◀ 前の5枚</button>
+        <span id="ref-counter" style="font-size:11px;color:#a6adc8;min-width:70px;text-align:center;">– / –</span>
+        <button class="btn btn-copy" id="ref-next" style="flex:0 0 auto;padding:6px 14px;">次の5枚 ▶</button>
+      </div>
+      <div class="ref-row" id="ref-row">
+        <div class="ref-empty">読み込み中…</div>
+      </div>
+    </div>
+  </div>
+  <div id="toast"></div>
+  <script src="config.js"></script>
+  <script src="costume_data.js"></script>
+  <script src="costume.js"></script>
+</body>
+</html>

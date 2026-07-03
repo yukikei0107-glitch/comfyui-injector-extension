@@ -237,6 +237,13 @@
     }
     #btn-folder-local { background: #45475a; }
     #btn-folder:hover, #btn-folder-local:hover { opacity: 0.85; }
+    /* 左パネルの文字を+2pt底上げ */
+    .dict-title { font-size: 14px; }
+    .dict-search { font-size: 14px; }
+    .dict-result { font-size: 13px; }
+    .dict-btn-append { font-size: 14px; }
+    .dict-item .di-ja { font-size: 14px; }
+    .dict-item .di-en { font-size: 12px; }
   </style>
 </head>
 <body>
@@ -248,19 +255,19 @@
         <div class="dict-inner">
           <div class="dict-title">📚 辞書 / 📝 翻訳</div>
           <div style="display:flex;gap:6px;margin-bottom:6px;">
-            <button id="tab-dict" style="flex:1;padding:6px;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">📚 辞書</button>
-            <button id="tab-settings" style="flex:1;padding:6px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:11px;">📝 翻訳</button>
-            <button id="tab-costume" style="flex:1;padding:6px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:11px;">👗 衣装</button>
+            <button id="tab-dict" style="flex:1;padding:6px;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">📚 辞書</button>
+            <button id="tab-settings" style="flex:1;padding:6px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:13px;">📝 翻訳</button>
+            <button id="tab-costume" style="flex:1;padding:6px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:13px;">👗 衣装</button>
           </div>
           
           <!-- 辞書セクション -->
           <div id="dict-section" style="flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;">
           <div style="display:flex;gap:6px;margin-bottom:6px;">
             <input class="dict-search" id="dict-search" placeholder="キーワード（カンマ区切りで複数可）" style="flex:1;" />
-            <button id="btn-dict-clear" style="flex:0 0 auto;padding:6px 10px;background:#45475a;color:#cdd6f4;border:none;border-radius:6px;cursor:pointer;font-size:12px;">✕</button>
+            <button id="btn-dict-clear" style="flex:0 0 auto;padding:6px 10px;background:#45475a;color:#cdd6f4;border:none;border-radius:6px;cursor:pointer;font-size:14px;">✕</button>
             </div>
 
-          <div class="dict-result empty" id="dict-result" style="min-height:60px;max-height:160px;font-size:13px;padding:10px;overflow-y:auto;display:flex;flex-direction:column;flex:0 0 auto;">キーワードを入力してください</div>
+          <div class="dict-result empty" id="dict-result" style="min-height:60px;max-height:160px;font-size:15px;padding:10px;overflow-y:auto;display:flex;flex-direction:column;flex:0 0 auto;">キーワードを入力してください</div>
           <div style="display:flex;gap:6px;margin-bottom:6px;">
             <button class="dict-btn-append" id="btn-dict-append" style="flex:1;">✍️ プロンプトに記入</button>
             <button class="dict-btn-append" id="btn-ai-suggest" style="flex:1;background:#a6a1de;">🤖 AI推奨</button>
@@ -274,36 +281,36 @@
           <div style="margin-top:0;padding-top:0;border-top:none;display:flex;flex-direction:column;height:100%;gap:4px;">
             <!-- 翻訳機能 -->
             <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
-              <div style="font-size:12px;color:#89b4fa;font-weight:bold;margin-bottom:4px;">📝 日本語→英語翻訳</div>
-              <textarea id="translate-input" placeholder="日本語を入力..." style="flex:1;padding:10px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:14px;resize:none;margin-bottom:4px;min-height:0;"></textarea>
+              <div style="font-size:14px;color:#89b4fa;font-weight:bold;margin-bottom:4px;">📝 日本語→英語翻訳</div>
+              <textarea id="translate-input" placeholder="日本語を入力..." style="flex:1;padding:10px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:16px;resize:none;margin-bottom:4px;min-height:0;"></textarea>
               <div style="display:flex;gap:4px;margin-bottom:4px;">
-                <button id="btn-translate" style="flex:1;padding:8px !important;background:#a6e3a1;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">📝 翻訳</button>
-                <button id="btn-tagify" style="flex:1;padding:8px !important;background:#f9e2af;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">🏷 タグ変換</button>
-                <button id="btn-enhance" style="flex:1;padding:8px !important;background:#f5c2e7;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">✨ 詳細化</button>
+                <button id="btn-translate" style="flex:1;padding:8px !important;background:#a6e3a1;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">📝 翻訳</button>
+                <button id="btn-tagify" style="flex:1;padding:8px !important;background:#f9e2af;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">🏷 タグ変換</button>
+                <button id="btn-enhance" style="flex:1;padding:8px !important;background:#f5c2e7;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">✨ 詳細化</button>
               </div>
-              <textarea id="translate-output" placeholder="英訳結果 / タグ結果..." style="flex:1;padding:10px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:14px;resize:none;margin-bottom:4px;min-height:0;" readonly></textarea>
+              <textarea id="translate-output" placeholder="英訳結果 / タグ結果..." style="flex:1;padding:10px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:16px;resize:none;margin-bottom:4px;min-height:0;" readonly></textarea>
               <div style="display:flex;gap:4px;flex:0 0 auto;">
-                <button id="btn-translate-insert" style="flex:1;padding:8px !important;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">✍️ プロンプトに記入</button>
-                <button id="btn-send-db" title="日本語＋英語プロンプト＋表示中の画像を textpair_db に登録" style="flex:1;padding:8px !important;background:#fab387;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">📤 DBに登録</button>
+                <button id="btn-translate-insert" style="flex:1;padding:8px !important;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">✍️ プロンプトに記入</button>
+                <button id="btn-send-db" title="日本語＋英語プロンプト＋表示中の画像を textpair_db に登録" style="flex:1;padding:8px !important;background:#fab387;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">📤 DBに登録</button>
               </div>
             </div>
           </div>
           </div>
 
           <!-- 衣装ガチャセクション -->
-          <div id="costume-section" style="display:none;flex:1;min-height:0;flex-direction:column;gap:6px;overflow-y:auto;">
-            <div style="font-size:12px;color:#89b4fa;font-weight:bold;">👗 衣装ガチャ</div>
-            <select id="costume-theme" style="width:100%;padding:6px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:12px;"></select>
-            <input id="costume-vibe" placeholder="雰囲気(任意) 例: 秋っぽい / セクシー" style="width:100%;padding:6px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:12px;" />
+          <div id="costume-section" style="display:none;flex:1;min-height:0;flex-direction:column;gap:10px;overflow-y:auto;">
+            <div style="font-size:15px;color:#89b4fa;font-weight:bold;">👗 衣装ガチャ</div>
+            <select id="costume-theme" style="width:100%;padding:6px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:14px;"></select>
+            <input id="costume-vibe" placeholder="雰囲気(任意) 例: 秋っぽい / セクシー" style="width:100%;padding:6px;background:#2a2a3e;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;font-size:14px;" />
             <div style="display:flex;gap:4px;">
-              <button id="btn-costume-roll" style="flex:1;padding:8px;background:#f9e2af;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">🎲 全部振る</button>
-              <button id="btn-costume-ai" style="flex:1;padding:8px;background:#a6a1de;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">🤖 AIで考える</button>
+              <button id="btn-costume-roll" style="flex:1;padding:8px;background:#f9e2af;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">🎲 全部振る</button>
+              <button id="btn-costume-ai" style="flex:1;padding:8px;background:#a6a1de;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">🤖 AIで考える</button>
             </div>
-            <div id="costume-slots" style="display:flex;flex-direction:column;gap:4px;"></div>
-            <div id="costume-preview" style="background:#2a2a3e;border:1px solid #45475a;border-radius:4px;padding:8px;font-size:12px;color:#a6e3a1;line-height:1.5;min-height:40px;word-break:break-word;">🎲を押すと衣装を提案します</div>
+            <div id="costume-slots" style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto;"></div>
+            <div id="costume-preview" style="background:#2a2a3e;border:1px solid #45475a;border-radius:4px;padding:8px;font-size:14px;color:#a6e3a1;line-height:1.5;min-height:40px;word-break:break-word;">🎲を押すと衣装を提案します</div>
             <div style="display:flex;gap:4px;">
-              <button id="btn-costume-insert" style="flex:1;padding:8px;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">✍️ 記入</button>
-              <button id="btn-costume-copy" style="flex:1;padding:8px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold;">📋 コピー</button>
+              <button id="btn-costume-insert" style="flex:1;padding:8px;background:#89b4fa;color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">✍️ 記入</button>
+              <button id="btn-costume-copy" style="flex:1;padding:8px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:13px;font-weight:bold;">📋 コピー</button>
             </div>
           </div>
         </div>

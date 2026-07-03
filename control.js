@@ -497,15 +497,28 @@ function initSuggest(textareaId, suggestBoxId) {
   }
 }
 
-// 履歴画面からプロンプトと画像を受け取る
+// 履歴画面・衣装画面からプロンプトと画像を受け取る
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "SET_PROMPT") {
-    document.getElementById("prompt-input").value = msg.text;
+    const ta = document.getElementById("prompt-input");
+    if (msg.append) {
+      // 末尾に追記（区切りが無ければカンマを足す）＝衣装ガチャの「送る」用
+      const cur = ta.value;
+      const sep = cur && !/[\s,]$/.test(cur) ? ", " : "";
+      ta.value = cur + sep + msg.text;
+    } else {
+      ta.value = msg.text;
+    }
     if (msg.imageUrl) {
       const img = document.getElementById("result-image");
       img.src = msg.imageUrl;
       img.style.display = "block";
       document.getElementById("placeholder").style.display = "none";
+    }
+    // 対応する日本語があれば翻訳入力欄にも入れる
+    if (msg.japanese) {
+      const jaEl = document.getElementById("translate-input");
+      if (jaEl) jaEl.value = jaEl.value.trim() ? (jaEl.value.replace(/\s*$/, "") + "、" + msg.japanese) : msg.japanese;
     }
   }
 });
@@ -1308,22 +1321,22 @@ async function handleDroppedImage(file) {
     for (const s of SLOTS) {
       const st = state.slots[s.key];
       const row = document.createElement("div");
-      row.style.cssText = "display:flex;gap:4px;align-items:center;";
+      row.style.cssText = "display:flex;gap:6px;align-items:center;background:#2a2a3e;border:1px solid #313244;border-radius:6px;padding:7px 9px;";
       const label = document.createElement("span");
       label.textContent = s.label;
-      label.style.cssText = "flex:0 0 46px;font-size:10px;color:#bac2de;";
+      label.style.cssText = "flex:0 0 58px;font-size:13px;color:#bac2de;font-weight:bold;";
       const val = document.createElement("span");
       val.textContent = st.value || "—";
-      val.style.cssText = "flex:1;font-size:11px;color:" + (st.value ? "#cdd6f4" : "#45475a") + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
+      val.style.cssText = "flex:1;font-size:13px;color:" + (st.value ? "#cdd6f4" : "#45475a") + ";overflow:hidden;text-overflow:ellipsis;white-space:nowrap;";
       const rollBtn = document.createElement("button");
       rollBtn.textContent = "🎲";
       rollBtn.title = "このパーツだけ振り直す";
-      rollBtn.style.cssText = "flex:0 0 auto;padding:2px 6px;background:#45475a;color:#cdd6f4;border:none;border-radius:4px;cursor:pointer;font-size:11px;";
+      rollBtn.style.cssText = "flex:0 0 auto;padding:5px 9px;background:#45475a;color:#cdd6f4;border:none;border-radius:5px;cursor:pointer;font-size:14px;";
       rollBtn.addEventListener("click", () => rollSlot(s.key));
       const lockBtn = document.createElement("button");
       lockBtn.textContent = st.locked ? "🔒" : "🔓";
       lockBtn.title = st.locked ? "固定中（クリックで解除）" : "固定して再ガチャで維持";
-      lockBtn.style.cssText = "flex:0 0 auto;padding:2px 6px;background:" + (st.locked ? "#f9e2af" : "#313244") + ";color:#1e1e2e;border:none;border-radius:4px;cursor:pointer;font-size:11px;";
+      lockBtn.style.cssText = "flex:0 0 auto;padding:5px 9px;background:" + (st.locked ? "#f9e2af" : "#313244") + ";color:#1e1e2e;border:none;border-radius:5px;cursor:pointer;font-size:14px;";
       lockBtn.addEventListener("click", () => { st.locked = !st.locked; render(); });
       row.append(label, val, rollBtn, lockBtn);
       slotsEl.appendChild(row);

@@ -30,7 +30,10 @@
         "control.html",
         "control.js",
         "history.html",
-        "history.js"
+        "history.js",
+        "costume.html",
+        "costume.js",
+        "costume_data.js"
       ],
       "matches": [
         "<all_urls>"

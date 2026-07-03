@@ -70,7 +70,9 @@ async function openNewControlTab() {
 }
 
 // 履歴などからプロンプトを「最後に見ていたコントロール画面」へ送る
-async function sendToControl(text, imageUrl) {
+// append=true なら上書きせずプロンプト末尾に追記する（衣装ガチャ用）
+// japanese があれば日本語欄（翻訳入力）にも送る
+async function sendToControl(text, imageUrl, append, japanese) {
   const controlUrl = chrome.runtime.getURL("control.html");
   let targetId = lastControlTabId;
 
@@ -93,20 +95,27 @@ async function sendToControl(text, imageUrl) {
     const tab = await chrome.tabs.create({ url: controlUrl, active: true });
     lastControlTabId = tab.id;
     setTimeout(() => {
-      chrome.tabs.sendMessage(tab.id, { type: "SET_PROMPT", text, imageUrl });
+      chrome.tabs.sendMessage(tab.id, { type: "SET_PROMPT", text, imageUrl, append, japanese });
     }, 1000);
     return;
   }
 
-  chrome.tabs.sendMessage(targetId, { type: "SET_PROMPT", text, imageUrl });
+  chrome.tabs.sendMessage(targetId, { type: "SET_PROMPT", text, imageUrl, append, japanese });
   chrome.tabs.update(targetId, { active: true });
   lastControlTabId = targetId;
 }
 
-// 履歴画面からの送信リクエスト
+// 履歴画面・衣装画面からの送信リクエスト
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type !== "USE_IN_CONTROL") return;
-  sendToControl(msg.text, msg.imageUrl).then(() => sendResponse({ ok: true }));
+  sendToControl(msg.text, msg.imageUrl, msg.append, msg.japanese).then(() => sendResponse({ ok: true }));
+  return true;
+});
+
+// 拡張ページを開く（既存があればフォーカス）リクエスト
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type !== "OPEN_PAGE" || !msg.page) return;
+  openExtTab(msg.page, true).then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
   return true;
 });
 
@@ -163,12 +172,18 @@ chrome.runtime.onInstalled.addListener(() => {
     title: "💬 吹き出しエディタを開く",
     contexts: ["all"]
   });
+  chrome.contextMenus.create({
+    id: "open-costume",
+    title: "👗 衣装ガチャを開く",
+    contexts: ["all"]
+  });
 });
 
 chrome.contextMenus.onClicked.addListener(async (info) => {
   if (info.menuItemId === "open-all") { openAllTabs(); return; }
   if (info.menuItemId === "open-new-control") { openNewControlTab(); return; }
   if (info.menuItemId === "open-dict") { openDictTab(); return; }
+  if (info.menuItemId === "open-costume") { openExtTab("costume.html"); return; }
   if (info.menuItemId === "open-phrase-search") {
     const tabs = await chrome.tabs.query({ url: chrome.runtime.getURL("phrase_search.html") });
     if (tabs.length > 0) {
