@@ -336,6 +336,10 @@
           <a href="#" id="btn-folder">📁 Text2Img フォルダを開く</a>
           <a href="#" id="btn-folder-local" data-path="/Users/yuki_kei/Desktop/４kリサイズ済/PNGリセット" title="クリックでパスをコピー（Finderで ⌘⇧G に貼り付け）">🖼 PNGリセット（パスをコピー）</a>
         </div>
+        <div class="btn-row" style="align-items:center;">
+          <button id="btn-set-savedir" style="flex:0 0 auto;padding:8px 12px;background:#cba6f7;color:#1e1e2e;border:none;border-radius:8px;font-size:12px;font-weight:bold;cursor:pointer;">📁 DL保存先</button>
+          <span id="savedir-status" style="flex:1;font-size:11px;color:#6c7086;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;">保存先: ダウンロードフォルダ（既定）</span>
+        </div>
       </div>
 
       <!-- 画像 -->
@@ -352,6 +356,8 @@
           <span id="img-counter" style="font-size:12px;color:#a6adc8;min-width:64px;text-align:center;">– / –</span>
           <button id="btn-img-next" title="次の画像（→）" style="padding:6px 14px;background:#45475a;color:#cdd6f4;border:none;border-radius:8px;font-size:14px;font-weight:bold;cursor:pointer;">▶</button>
           <button id="btn-img-refresh" title="履歴を再読込" style="padding:6px 10px;background:#313244;color:#cdd6f4;border:none;border-radius:8px;font-size:13px;cursor:pointer;">🔄</button>
+          <button id="btn-img-download" title="表示中の画像をHTTPでダウンロード（SMB不要）" style="padding:6px 10px;background:#a6e3a1;color:#1e1e2e;border:none;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;">💾</button>
+          <button id="btn-img-download-recent" title="最近の生成をまとめてダウンロード" style="padding:6px 10px;background:#94e2d5;color:#1e1e2e;border:none;border-radius:8px;font-size:13px;font-weight:bold;cursor:pointer;">📦</button>
           <span id="gen-time" title="生成にかかった時間" style="font-size:12px;color:#a6e3a1;min-width:72px;text-align:center;font-variant-numeric:tabular-nums;"></span>
         </div>
       </div>

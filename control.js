@@ -338,6 +338,104 @@ document.getElementById("btn-img-prev").addEventListener("click", () => { if (ga
 document.getElementById("btn-img-next").addEventListener("click", () => { if (galleryIndex < galleryImages.length - 1) showGalleryAt(galleryIndex + 1, true); });
 document.getElementById("btn-img-refresh").addEventListener("click", () => loadGalleryFromHistory(true));
 
+// ===== 保存先フォルダ（File System Access API）＋ HTTPダウンロード =====
+let saveDirHandle = null;
+
+function dlIdb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("control_dl_db", 1);
+    req.onupgradeneeded = () => req.result.createObjectStore("kv");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dlIdbSet(k, v) { const db = await dlIdb(); return new Promise((res, rej) => { const tx = db.transaction("kv", "readwrite"); tx.objectStore("kv").put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+async function dlIdbGet(k) { const db = await dlIdb(); return new Promise((res, rej) => { const tx = db.transaction("kv", "readonly"); const r = tx.objectStore("kv").get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+
+function setSaveDirStatus(msg, color) {
+  const el = document.getElementById("savedir-status");
+  if (el) { el.textContent = msg; el.style.color = color || "#6c7086"; }
+}
+
+async function chooseSaveDir() {
+  if (!window.showDirectoryPicker) { alert("このブラウザはフォルダ指定に未対応です（Chrome系で使えます）"); return; }
+  try {
+    const h = await window.showDirectoryPicker({ mode: "readwrite" });
+    saveDirHandle = h;
+    await dlIdbSet("saveDir", h);
+    setSaveDirStatus(`保存先: ${h.name}`, "#a6e3a1");
+  } catch (e) { if (e.name !== "AbortError") alert("フォルダ設定に失敗: " + e.message); }
+}
+
+async function ensureDirPermission() {
+  if (!saveDirHandle) return false;
+  let p = await saveDirHandle.queryPermission({ mode: "readwrite" });
+  if (p !== "granted") p = await saveDirHandle.requestPermission({ mode: "readwrite" });
+  return p === "granted";
+}
+
+// 1枚取得して保存（フォルダ指定があればそこへ、無ければブラウザDL）。{bytes, ms, name} を返す
+async function downloadImage(item) {
+  if (!item || !item.url) return null;
+  const t0 = performance.now();
+  const res = await fetch(item.url);
+  const blob = await res.blob();
+  let name = "image.png";
+  try { const f = new URL(item.url).searchParams.get("filename"); if (f) name = decodeURIComponent(f).split("/").pop(); } catch (e) {}
+  if (saveDirHandle && await ensureDirPermission()) {
+    const fh = await saveDirHandle.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(blob); await w.close();
+  } else {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+  return { bytes: blob.size, ms: performance.now() - t0, name };
+}
+
+function fmtSpeed(bytes, ms) {
+  const mb = bytes / 1048576, sec = ms / 1000;
+  const mbps = sec > 0 ? mb / sec : 0;
+  return `${mb.toFixed(2)}MB / ${sec.toFixed(1)}s / ${mbps.toFixed(1)}MB/s`;
+}
+
+document.getElementById("btn-set-savedir").addEventListener("click", chooseSaveDir);
+
+document.getElementById("btn-img-download").addEventListener("click", async () => {
+  const item = galleryImages[galleryIndex];
+  if (!item) { setStatus("表示中の画像がありません", true); return; }
+  try { const r = await downloadImage(item); setStatus(`💾 ${r.name} … ${fmtSpeed(r.bytes, r.ms)}`); }
+  catch (e) { setStatus("ダウンロード失敗: " + e.message, true); }
+});
+
+document.getElementById("btn-img-download-recent").addEventListener("click", async () => {
+  const N = 20;
+  const items = galleryImages.slice(-N);
+  if (!items.length) { setStatus("画像がありません", true); return; }
+  if (!confirm(`最近の ${items.length} 枚をHTTPでダウンロードします。よろしいですか？`)) return;
+  let ok = 0, bytes = 0;
+  const t0 = performance.now();
+  for (const it of items) {
+    try { const r = await downloadImage(it); if (r) { ok++; bytes += r.bytes; } setStatus(`📦 ${ok}/${items.length} … ${(bytes / 1048576).toFixed(1)}MB`); } catch (e) {}
+    if (!saveDirHandle) await new Promise(res => setTimeout(res, 350)); // ブラウザDL時のみ間隔
+  }
+  setStatus(`📦 ${ok}/${items.length}枚 完了 … ${fmtSpeed(bytes, performance.now() - t0)}`);
+});
+
+// 起動時：保存先フォルダを復元
+(async () => {
+  try {
+    const h = await dlIdbGet("saveDir");
+    if (h) {
+      saveDirHandle = h;
+      const p = await h.queryPermission({ mode: "readwrite" });
+      setSaveDirStatus(p === "granted" ? `保存先: ${h.name}` : `保存先: ${h.name}（保存時に許可を確認）`, p === "granted" ? "#a6e3a1" : "#f9e2af");
+    }
+  } catch (e) {}
+})();
+
 // 矢印キーで前後（テキスト入力中は無効）
 document.addEventListener("keydown", (e) => {
   const ae = document.activeElement;
