@@ -92,7 +92,10 @@ async function loadHistory() {
       const images = [];
       for (const nodeOut of Object.values(outputs)) {
         if (nodeOut.images?.length) {
-          for (const img of nodeOut.images) images.push(img);
+          for (const img of nodeOut.images) {
+            if ((img.subfolder || "").startsWith("costume_preview")) continue; // 衣装ガチャのプレビューは履歴に出さない
+            images.push(img);
+          }
         }
       }
       if (!images.length) continue;
