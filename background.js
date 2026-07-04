@@ -121,7 +121,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
 // すべての画面を一度に開く
 async function openAllTabs() {
-  const pages = ["control.html", "dict.html", "history.html", "phrase_search.html", "bubble.html"];
+  const pages = ["control.html", "dict.html", "history.html", "phrase_search.html", "bubble.html", "costume.html"];
   for (const page of pages) {
     // 最後のcontrol.htmlだけアクティブにする
     await openExtTab(page, false);

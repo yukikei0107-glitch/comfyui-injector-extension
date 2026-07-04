@@ -319,6 +319,7 @@ async function loadGalleryFromHistory(showLatest) {
         for (const img of (nodeOut.images || [])) {
           const type = img.type || "output";
           if (type !== "output") continue; // 一時プレビュー等は除外
+          if ((img.subfolder || "").startsWith("costume_preview")) continue; // 衣装ガチャのプレビューは混ぜない
           items.push({
             url: `${COMFYUI_BASE}/api/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=${type}`,
             prompt: ptext

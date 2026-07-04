@@ -50,8 +50,10 @@ const rand = arr => arr[Math.floor(Math.random() * arr.length)];
 function extractOutfitBySlot(promptText) {
   const order = ["legwear", "shoes", "outerwear", "head", "accessory", "main"];
   const buckets = { main: [], legwear: [], shoes: [], outerwear: [], head: [], accessory: [] };
+  const hasJP = /[぀-ヿ㐀-鿿＀-￯]/; // ひらがな/カタカナ/漢字/全角
   const tags = String(promptText || "").split(",").map(s => s.trim()).filter(Boolean);
   for (const tag of tags) {
+    if (hasJP.test(tag)) continue; // 日本語を含むタグは衣装候補に入れない（英語タグのみ）
     const t = tag.toLowerCase();
     for (const slot of order) {
       if ((KW[slot] || []).some(k => t.includes(k))) { buckets[slot].push(tag); break; }
@@ -192,8 +194,6 @@ function aiPropose() {
 // ===== 参考（5枚並べ、◀▶で5枚ずつ送る）=====
 const REF_PAGE = 5;
 let galleryItems = []; // { url, prompt }（通常生成のみ。プレビューは除外）
-let refList = [];      // フィルタ適用後の表示対象
-let refPage = 0;
 let previewList = [];  // { url, prompt } 「この衣装で生成」した過去プレビュー（新しい順）
 let genIndex = 0;      // 右上プレビュー枠で今見ているプレビューの位置
 
@@ -204,7 +204,7 @@ function showPreviewAt(i) {
   const badge = document.getElementById("gen-badge");
   const cap = document.getElementById("gen-caption");
   const counter = document.getElementById("gen-counter");
-  if (!previewList.length) { counter.textContent = "– / –"; renderGen3(); return; }
+  if (!previewList.length) { if (counter) counter.textContent = "– / –"; return; }
   genIndex = Math.max(0, Math.min(i, previewList.length - 1));
   const it = previewList[genIndex];
   img.onload = null; img.onerror = null; // 生成時のハンドラを無効化
@@ -213,34 +213,30 @@ function showPreviewAt(i) {
   badge.style.display = "block";
   const outfit = extractOutfitBySlot(it.prompt || "");
   cap.textContent = SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "";
-  counter.textContent = `${genIndex + 1} / ${previewList.length}`;
-  renderGen3();
+  if (counter) counter.textContent = `${genIndex + 1} / ${previewList.length}`;
 }
 
-// 生成プレビューを3枚並べる（今見ているものを含むページ）。クリックで大プレビューに表示。
-function renderGen3() {
-  const row = document.getElementById("gen3-row");
-  if (!row) return;
-  if (!previewList.length) { row.innerHTML = '<div class="ref-empty" style="position:static;">まだプレビューがありません</div>'; return; }
-  const page = Math.floor(genIndex / 3);
-  const items = previewList.slice(page * 3, page * 3 + 3);
-  row.innerHTML = "";
-  items.forEach((it, k) => {
-    const absIdx = page * 3 + k;
-    const cell = document.createElement("div");
-    cell.className = "gen3-cell" + (absIdx === genIndex ? " sel" : "");
-    const img = document.createElement("img");
-    img.loading = "lazy"; img.src = it.url;
-    cell.appendChild(img);
-    cell.addEventListener("click", () => showPreviewAt(absIdx));
-    row.appendChild(cell);
-  });
+// 任意の画像（お取り置き等）を真ん中の大プレビューに表示する
+function showImageInPreview(url, prompt) {
+  const img = document.getElementById("gen-img");
+  const ph = document.getElementById("gen-placeholder");
+  const badge = document.getElementById("gen-badge");
+  const cap = document.getElementById("gen-caption");
+  img.onload = null; img.onerror = null;
+  ph.style.display = "none";
+  img.src = url; img.style.display = "block";
+  badge.style.display = "block";
+  const outfit = extractOutfitBySlot(prompt || "");
+  cap.textContent = SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "";
 }
+
 
 // ===== ⭐ お取り置き（気に入ったプレビューを小さい帯に常設保存）=====
 let reservedList = []; // { url, prompt }
 function saveReserved() {
+  // 2重に保存（chrome.storage＋localStorage）＝どちらかが飛んでも残る
   try { chrome.storage.local.set({ costume_reserved: reservedList }); } catch (e) {}
+  try { localStorage.setItem("costume_reserved", JSON.stringify(reservedList)); } catch (e) {}
 }
 function renderReserve() {
   const strip = document.getElementById("reserve-strip");
@@ -256,8 +252,10 @@ function renderReserve() {
     const rm = document.createElement("div");
     rm.className = "rm"; rm.textContent = "×"; rm.title = "取り置きから外す";
     rm.addEventListener("click", (e) => { e.stopPropagation(); reservedList.splice(idx, 1); saveReserved(); renderReserve(); });
-    cell.append(img, rm);
-    cell.addEventListener("click", () => applyOutfitFromPrompt(it.prompt));
+    const lr = document.createElement("div");
+    lr.className = "lowres"; lr.textContent = "⚠ 低解像度";
+    cell.append(img, lr, rm);
+    cell.addEventListener("click", () => { showImageInPreview(it.url, it.prompt); applyOutfitFromPrompt(it.prompt); });
     strip.appendChild(cell);
   });
 }
@@ -272,8 +270,6 @@ function reserveCurrent() {
 }
 
 async function loadGallery() {
-  const row = document.getElementById("ref-row");
-  row.innerHTML = '<div class="ref-empty">読み込み中…</div>';
   try {
     const history = await bgFetch(`${COMFYUI_BASE}/history`);
     const items = [], previews = [];
@@ -294,50 +290,13 @@ async function loadGallery() {
     galleryItems = items;
     previewList = previews;
     buildHistoryTheme();
-    applyRefFilter();
     showPreviewAt(0); // 過去プレビューがあれば最新を右上に表示（無ければカウンタのみ）
   } catch (e) {
-    row.innerHTML = '<div class="ref-empty">履歴を取得できませんでした（ComfyUI未接続？）</div>';
+    console.warn("[衣装] 履歴取得に失敗:", e);
   }
 }
 
-// フィルタを適用して表示対象を作り直す（先頭＝最新から表示）
-function applyRefFilter() {
-  const f = (document.getElementById("gallery-filter").value || "").trim().toLowerCase();
-  refList = f ? galleryItems.filter(it => it.prompt.toLowerCase().includes(f)) : galleryItems.slice();
-  refPage = 0;
-  renderRefPage();
-}
-
-// 現在ページの5枚を並べて表示（各クリックで衣装を読込）
-function renderRefPage() {
-  const row = document.getElementById("ref-row");
-  const counter = document.getElementById("ref-counter");
-  const pages = Math.ceil(refList.length / REF_PAGE);
-  if (!refList.length) {
-    row.innerHTML = '<div class="ref-empty">参考画像がありません</div>';
-    counter.textContent = "– / –";
-    return;
-  }
-  refPage = Math.max(0, Math.min(refPage, pages - 1));
-  const items = refList.slice(refPage * REF_PAGE, refPage * REF_PAGE + REF_PAGE);
-  row.innerHTML = "";
-  for (const it of items) {
-    const outfit = extractOutfitBySlot(it.prompt);
-    const summary = SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "(検出なし)";
-    const cell = document.createElement("div");
-    cell.className = "ref-cell";
-    cell.title = "クリックでこの衣装を読込\n\n" + summary;
-    const img = document.createElement("img");
-    img.loading = "lazy"; img.src = it.url;
-    const cap = document.createElement("div");
-    cap.className = "rc-cap"; cap.textContent = summary;
-    cell.append(img, cap);
-    cell.addEventListener("click", () => applyOutfitFromPrompt(it.prompt));
-    row.appendChild(cell);
-  }
-  counter.textContent = `${refPage + 1} / ${pages}`;
-}
+// （参考ギャラリーは廃止）
 
 // 過去画像の衣装をスロットに読み込む（ロック中のスロットは維持）
 function applyOutfitFromPrompt(promptText) {
@@ -441,14 +400,24 @@ async function generatePreview() {
     // プレビュー用プロンプト（全身が見えるよう指定）＋ 衣装
     const base = (document.getElementById("gen-prompt").value || "").trim() || DEFAULT_GEN_PROMPT;
     const prompt = base + ", " + outfit;
+    const setText = (node) => { if (!node.inputs) return; if ("value" in node.inputs) node.inputs.value = prompt; else node.inputs.text = prompt; };
+    const isText = (t) => t === "cliptextencode" || t === "primitivestringmultiline";
+    let replaced = false;
+    // ① タイトルに positive/ポジティブ を含むテキストノード
     for (const node of Object.values(workflow)) {
       const title = (node._meta && node._meta.title || "").toLowerCase();
       const type = (node.class_type || "").toLowerCase();
-      if ((type === "cliptextencode" || type === "primitivestringmultiline") && ["positive", "ポジティブ"].some(k => title.includes(k))) {
-        if ("value" in node.inputs) node.inputs.value = prompt; else node.inputs.text = prompt;
-        break;
+      if (isText(type) && ["positive", "ポジティブ"].some(k => title.includes(k))) { setText(node); replaced = true; break; }
+    }
+    // ② 見つからなければ、negative以外の最初のテキストノード
+    if (!replaced) {
+      for (const node of Object.values(workflow)) {
+        const title = (node._meta && node._meta.title || "").toLowerCase();
+        const type = (node.class_type || "").toLowerCase();
+        if (isText(type) && !["negative", "ネガティブ", "neg"].some(k => title.includes(k))) { setText(node); replaced = true; break; }
       }
     }
+    if (!replaced) { showGenError("プロンプトを差し替えるテキストノードが見つかりません。土台にした生成のワークフローが非対応かもしれません"); return; }
     // 軽いプレビュー：土台が大きいときだけ解像度を半分に（/64スナップでモデル安全）＋stepsを最大8＋seedランダム化。
     let info = "", genSize = "";
     for (const node of Object.values(workflow)) {
@@ -511,10 +480,9 @@ async function generatePreview() {
       imgEl.style.display = "block";
       badge.style.display = "block";
       caption.textContent = `${genSize ? genSize + " / " : ""}${info ? info + " / " : ""}${((performance.now() - t0) / 1000).toFixed(1)}s`;
-      previewList.unshift({ url, prompt }); // 過去プレビュー履歴の先頭に追加
+      previewList.unshift({ url, prompt }); // 最新プレビューとして保持
       genIndex = 0;
-      document.getElementById("gen-counter").textContent = `${genIndex + 1} / ${previewList.length}`;
-      renderGen3();
+      const c = document.getElementById("gen-counter"); if (c) c.textContent = `1 / ${previewList.length}`;
     };
     imgEl.onerror = () => showGenError("画像の読み込みに失敗: " + url);
     imgEl.src = url;
@@ -530,17 +498,39 @@ async function generatePreview() {
 document.getElementById("btn-gen").addEventListener("click", generatePreview);
 document.getElementById("btn-roll").addEventListener("click", rollAll);
 document.getElementById("btn-ai").addEventListener("click", aiPropose);
-document.getElementById("btn-gallery-refresh").addEventListener("click", loadGallery);
-document.getElementById("gallery-filter").addEventListener("input", applyRefFilter);
-document.getElementById("ref-prev").addEventListener("click", () => { if (refPage > 0) { refPage--; renderRefPage(); } });
-document.getElementById("ref-next").addEventListener("click", () => {
-  const pages = Math.ceil(refList.length / REF_PAGE);
-  if (refPage < pages - 1) { refPage++; renderRefPage(); }
-});
 // 右上プレビュー枠：過去プレビューを◀（古い）▶（新しい）で見返す
+// ◀戻る(古い) ▶進む(新しい) で過去プレビューを行き来
 document.getElementById("gen-prev").addEventListener("click", () => { if (genIndex < previewList.length - 1) showPreviewAt(genIndex + 1); });
 document.getElementById("gen-next").addEventListener("click", () => { if (genIndex > 0) showPreviewAt(genIndex - 1); });
 document.getElementById("btn-reserve").addEventListener("click", reserveCurrent);
+// 💾 お取り置きをJSONで書き出し（システムが飛んでも復元できるバックアップ）
+document.getElementById("btn-reserve-export").addEventListener("click", () => {
+  if (!reservedList.length) { toast("お取り置きが空です", "#f9e2af"); return; }
+  const blob = new Blob([JSON.stringify(reservedList, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "costume_reserved_backup.json"; a.click();
+  URL.revokeObjectURL(url);
+  toast(`💾 ${reservedList.length}件を書き出しました`);
+});
+// ♻️ バックアップから復元（既存とマージ・url重複は除外）
+document.getElementById("btn-reserve-import").addEventListener("click", () => {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = ".json";
+  input.onchange = async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    try {
+      const arr = JSON.parse(await file.text());
+      if (!Array.isArray(arr)) { toast("形式が不正です", "#f38ba8"); return; }
+      const seen = new Set(reservedList.map(r => r.url));
+      let added = 0;
+      for (const it of arr) { if (it && it.url && !seen.has(it.url)) { reservedList.push(it); seen.add(it.url); added++; } }
+      saveReserved(); renderReserve();
+      toast(`♻️ ${added}件を復元（現在 ${reservedList.length}件）`);
+    } catch (err) { toast("読込失敗: " + err.message, "#f38ba8"); }
+  };
+  input.click();
+});
 
 
 document.getElementById("btn-copy").addEventListener("click", async () => {
@@ -571,9 +561,14 @@ document.getElementById("btn-send").addEventListener("click", () => {
   gp.addEventListener("change", () => {
     chrome.storage.local.set({ costume_gen_prompt: gp.value.trim() });
   });
-  // お取り置きを復元
+  // お取り置きを復元（chrome.storageが空ならlocalStorageから）
   chrome.storage.local.get("costume_reserved", (d) => {
-    reservedList = (d && Array.isArray(d.costume_reserved)) ? d.costume_reserved : [];
+    let list = (d && Array.isArray(d.costume_reserved)) ? d.costume_reserved : null;
+    if (!list || !list.length) {
+      try { const ls = JSON.parse(localStorage.getItem("costume_reserved") || "[]"); if (ls.length) list = ls; } catch (e) {}
+    }
+    reservedList = list || [];
+    if (reservedList.length) saveReserved(); // 両方に揃えておく
     renderReserve();
   });
   // 保存状態を復元（無ければ初期ガチャ）
