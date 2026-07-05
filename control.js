@@ -599,14 +599,17 @@ function initSuggest(textareaId, suggestBoxId) {
 // 履歴画面・衣装画面からプロンプトと画像を受け取る
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === "SET_PROMPT") {
-    const ta = document.getElementById("prompt-input");
-    if (msg.append) {
-      // 末尾に追記（区切りが無ければカンマを足す）＝衣装ガチャの「送る」用
-      const cur = ta.value;
-      const sep = cur && !/[\s,]$/.test(cur) ? ", " : "";
-      ta.value = cur + sep + msg.text;
-    } else {
-      ta.value = msg.text;
+    // text がある時だけプロンプト欄を触る（衣装ガチャの「送る」は翻訳欄だけに入れたいので text は送らない）
+    if (msg.text != null) {
+      const ta = document.getElementById("prompt-input");
+      if (msg.append) {
+        // 末尾に追記（区切りが無ければカンマを足す）
+        const cur = ta.value;
+        const sep = cur && !/[\s,]$/.test(cur) ? ", " : "";
+        ta.value = cur + sep + msg.text;
+      } else {
+        ta.value = msg.text;
+      }
     }
     if (msg.imageUrl) {
       const img = document.getElementById("result-image");
@@ -1392,6 +1395,7 @@ async function handleDroppedImage(file) {
 
   // 1スロットを振る（テーマにそのスロットが無ければ空）
   function rollOne(themeObj, key) {
+    if (key === "color") { const c = window.COSTUME_COLORS || []; return c.length ? rand(c) : ""; } // 色はテーマ共通プール
     const pool = themeObj && themeObj.slots && themeObj.slots[key];
     return pool && pool.length ? rand(pool) : "";
   }

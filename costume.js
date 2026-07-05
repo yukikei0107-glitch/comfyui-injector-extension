@@ -77,6 +77,7 @@ function resolveTheme() {
   return t;
 }
 function rollOne(themeObj, key) {
+  if (key === "color") { const c = window.COSTUME_COLORS || []; return c.length ? rand(c) : ""; } // 色はテーマ共通プール
   const pool = themeObj && themeObj.slots && themeObj.slots[key];
   return pool && pool.length ? rand(pool) : "";
 }
@@ -168,7 +169,7 @@ function aiPropose() {
     type: "ollama-generate",
     backend: llmBackend, serverUrl: llmServerUrl, model: llmModel,
     temperature: 0.9, maxTokens: 512,
-    system: "You are an outfit stylist for anime image-generation prompts. Propose ONE coherent, creative outfit for a single girl. Theme: " + themeLabel + ". Vibe: " + (vibe || "any") + ".\nOutput EXACTLY these labeled lines and nothing else. Each value is lowercase Danbooru-style comma-separated tags, or 'none' if not applicable:\nmain: <top and bottom, or a dress>\nlegwear: <socks/tights or none>\nshoes: <footwear>\nouterwear: <jacket/coat or none>\nhead: <headwear/hair accessory or none>\naccessory: <accessory or none>\nNo explanations, no extra lines.",
+    system: "You are an outfit stylist for anime image-generation prompts. Propose ONE coherent, creative outfit for a single girl. Theme: " + themeLabel + ". Vibe: " + (vibe || "any") + ".\nOutput EXACTLY these labeled lines and nothing else. Each value is lowercase Danbooru-style comma-separated tags, or 'none' if not applicable:\nmain: <top and bottom, or a dress>\nlegwear: <socks/tights or none>\nshoes: <footwear>\nouterwear: <jacket/coat or none>\nhead: <headwear/hair accessory or none>\naccessory: <accessory or none>\ncolor: <overall color palette as a danbooru theme tag, e.g. pink theme / monochrome / red and black, or none>\nNo explanations, no extra lines.",
     prompt: "Theme: " + themeLabel + (vibe ? (" / Vibe: " + vibe) : "")
   }, (response) => {
     btn.disabled = false; btn.textContent = "🤖 AIで考える";
@@ -183,6 +184,8 @@ function aiPropose() {
       if (m) {
         let v = m[1].trim().replace(/^["'`]+|["'`]+$/g, "").trim();
         if (/^(none|なし|n\/a|-)$/i.test(v)) v = "";
+        // 日本語を含むタグは除外（英語タグのみ残す）
+        v = v.split(",").map(t => t.trim()).filter(t => t && !/[぀-ヿ㐀-鿿＀-￯]/.test(t)).join(", ");
         state.slots[s.key].value = v;
       }
     }
@@ -544,9 +547,9 @@ document.getElementById("btn-copy").addEventListener("click", async () => {
 document.getElementById("btn-send").addEventListener("click", () => {
   const str = buildString();
   if (!str) { toast("衣装が空です。🎲を押してください", "#f9e2af"); return; }
-  // 日本語欄には英語のまま入れる（自動和訳は精度が悪いため）
-  chrome.runtime.sendMessage({ type: "USE_IN_CONTROL", text: str, append: true, japanese: str }, () => {
-    toast("✍️ コントロール画面に送りました");
+  // 翻訳欄（日本語→英語翻訳の入力）にだけ送る。プロンプト欄には入れない（text を送らない）
+  chrome.runtime.sendMessage({ type: "USE_IN_CONTROL", japanese: str }, () => {
+    toast("✍️ 翻訳欄に送りました");
   });
 });
 

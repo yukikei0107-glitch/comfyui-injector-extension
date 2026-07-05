@@ -7,7 +7,17 @@ window.COSTUME_SLOTS = [
   { key: "shoes",      label: "靴" },
   { key: "outerwear",  label: "アウター" },
   { key: "head",       label: "頭" },
-  { key: "accessory",  label: "アクセ" }
+  { key: "accessory",  label: "アクセ" },
+  { key: "color",      label: "色" }
+];
+
+// 色（全体の配色）候補。テーマ共通で使う。"" は色指定なし。
+window.COSTUME_COLORS = [
+  "", "", "monochrome", "pastel colors", "vivid colors", "dark theme",
+  "black theme", "white theme", "red theme", "pink theme", "blue theme",
+  "purple theme", "green theme", "yellow theme", "orange theme", "brown theme",
+  "black and white", "red and black", "white and gold", "blue and white",
+  "pink and white", "limited palette", "colorful"
 ];
 
 // 過去プロンプトから「服の部分だけ」を抽出するためのキーワード（スロット別）。
