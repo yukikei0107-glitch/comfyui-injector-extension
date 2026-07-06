@@ -617,10 +617,21 @@ chrome.runtime.onMessage.addListener((msg) => {
       img.style.display = "block";
       document.getElementById("placeholder").style.display = "none";
     }
-    // 対応する日本語があれば翻訳入力欄にも入れる
+    // 衣装ガチャ等からの文字列を、翻訳入力欄の「カーソル位置」に挿入
     if (msg.japanese) {
       const jaEl = document.getElementById("translate-input");
-      if (jaEl) jaEl.value = jaEl.value.trim() ? (jaEl.value.replace(/\s*$/, "") + "、" + msg.japanese) : msg.japanese;
+      if (jaEl) {
+        const s = (jaEl.selectionStart != null) ? jaEl.selectionStart : jaEl.value.length;
+        const e = (jaEl.selectionEnd != null) ? jaEl.selectionEnd : jaEl.value.length;
+        const before = jaEl.value.substring(0, s), after = jaEl.value.substring(e);
+        // 直前が空でなく区切りが無ければ「、」を足す
+        const sep = (before && !/[\s,、]$/.test(before)) ? "、" : "";
+        const ins = sep + msg.japanese;
+        jaEl.value = before + ins + after;
+        const pos = s + ins.length;
+        jaEl.selectionStart = jaEl.selectionEnd = pos;
+        jaEl.focus();
+      }
     }
   }
 });

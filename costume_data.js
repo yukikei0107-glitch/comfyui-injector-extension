@@ -45,7 +45,10 @@ window.COSTUME_THEMES = {
         "blazer, dress shirt, ribbon, pleated skirt",
         "blazer, cardigan, necktie, pleated skirt",
         "sailor dress, white collar",
-        "sweater vest, dress shirt, pleated skirt"
+        "sweater vest, dress shirt, pleated skirt",
+        "winter serafuku, long sleeves, pleated skirt",
+        "blazer, sweater, plaid skirt",
+        "sailor dress, long skirt", "gakuran-style uniform, skirt"
       ],
       legwear: ["black thighhighs", "white thighhighs", "black pantyhose", "loose socks", "white kneehighs", "black kneehighs, zettai ryouiki"],
       shoes: ["loafers", "brown loafers", "uwabaki", "sneakers"],
@@ -67,7 +70,9 @@ window.COSTUME_THEMES = {
         "blouse, suspender skirt",
         "turtleneck sweater, corduroy skirt",
         "graphic tee, cargo pants",
-        "camisole, cardigan, shorts"
+        "camisole, cardigan, shorts",
+        "off-shoulder top, wide pants", "knit dress",
+        "parka, mini skirt", "shirt dress", "overalls, striped shirt"
       ],
       legwear: ["", "", "black thighhighs", "white socks", "over-knee socks", "ankle socks"],
       shoes: ["sneakers", "white sneakers", "canvas shoes", "ankle boots", "sandals"],
@@ -83,7 +88,8 @@ window.COSTUME_THEMES = {
       main: [
         "white bikini", "black bikini", "string bikini", "frilled bikini",
         "polka dot bikini", "halterneck bikini", "one-piece swimsuit",
-        "competition swimsuit", "sailor-collar swimsuit", "sling bikini"
+        "competition swimsuit", "sailor-collar swimsuit", "sling bikini",
+        "micro bikini", "tankini", "bikini, sarong", "front-tie bikini", "high-leg swimsuit"
       ],
       legwear: ["", "", ""],
       shoes: ["barefoot", "flip-flops", "sandals", "beach sandals"],
@@ -184,6 +190,190 @@ window.COSTUME_THEMES = {
       outerwear: ["", "", "track jacket", "windbreaker"],
       head: ["", "headband", "visor", "sports cap", "ponytail"],
       accessory: ["", "", "sweatband", "water bottle", "towel around neck"]
+    }
+  },
+
+  maid: {
+    label: "メイド",
+    slots: {
+      main: [
+        "maid outfit", "maid dress, apron", "victorian maid dress",
+        "black maid dress, white apron", "frilled maid dress", "short maid dress",
+        "long maid dress, puffy sleeves", "gothic maid dress"
+      ],
+      legwear: ["black thighhighs", "white thighhighs", "black pantyhose", "white stockings, lace trim"],
+      shoes: ["mary janes", "black heels", "buckle shoes"],
+      outerwear: ["", "", "shawl"],
+      head: ["maid headdress", "frilled hairband", "white headdress", "maid headdress, ribbon"],
+      accessory: ["", "wrist cuffs", "feather duster", "serving tray", "black choker", "apron"]
+    }
+  },
+
+  nurse: {
+    label: "ナース",
+    slots: {
+      main: [
+        "nurse uniform", "white nurse dress", "pink nurse uniform",
+        "short nurse dress", "nurse dress, front zipper", "sleeveless nurse dress"
+      ],
+      legwear: ["white thighhighs", "white pantyhose", "white kneehighs", ""],
+      shoes: ["white nurse shoes", "white sneakers", "white heels"],
+      outerwear: ["", "", "white coat", "cardigan"],
+      head: ["nurse cap", "nurse cap, red cross", ""],
+      accessory: ["", "stethoscope", "syringe", "clipboard", "wrist watch"]
+    }
+  },
+
+  miko: {
+    label: "巫女",
+    slots: {
+      main: [
+        "miko outfit", "white kimono, red hakama", "miko, red hakama",
+        "detached sleeves, red hakama", "white kosode, red nagabakama"
+      ],
+      legwear: ["tabi socks", "tabi socks", "", "white thighhighs"],
+      shoes: ["zori", "geta", "sandals"],
+      outerwear: ["", "haori", "chihaya"],
+      head: ["", "hair ribbon", "white ribbon", "flower hair ornament"],
+      accessory: ["", "ofuda", "gohei", "folding fan", "kagura bell"]
+    }
+  },
+
+  china: {
+    label: "チャイナ服",
+    slots: {
+      main: [
+        "china dress", "red china dress", "blue china dress, gold trim",
+        "short china dress", "china dress, thigh slit", "cheongsam",
+        "sleeveless china dress", "floral china dress"
+      ],
+      legwear: ["black thighhighs", "china dress, pelvic curtain", "white thighhighs", ""],
+      shoes: ["heels", "flats", "mary janes"],
+      outerwear: ["", ""],
+      head: ["double bun", "hair buns", "flower hair ornament", ""],
+      accessory: ["", "chinese knot", "folding fan", "gold bracelet", "hair stick"]
+    }
+  },
+
+  office: {
+    label: "OL・オフィス",
+    slots: {
+      main: [
+        "business suit, pencil skirt", "office lady, blouse, skirt",
+        "blazer, dress shirt, pencil skirt", "suit, tight skirt",
+        "vest, dress shirt, skirt", "blouse, high-waist skirt"
+      ],
+      legwear: ["sheer black pantyhose", "black pantyhose", "black thighhighs", ""],
+      shoes: ["high heels", "black heels", "pumps"],
+      outerwear: ["", "", "blazer", "suit jacket", "trench coat"],
+      head: ["", "", "glasses", "hair bun", "ponytail"],
+      accessory: ["", "glasses", "necktie", "id card", "handbag", "wristwatch"]
+    }
+  },
+
+  idol: {
+    label: "アイドル",
+    slots: {
+      main: [
+        "idol costume", "frilly idol dress", "sparkly idol outfit",
+        "idol dress, ruffles", "pop idol costume, layered skirt",
+        "frilled idol dress, ribbons"
+      ],
+      legwear: ["white thighhighs", "striped thighhighs", "frilled thighhighs", "over-knee socks"],
+      shoes: ["knee-high boots", "mary janes", "white boots", "platform shoes"],
+      outerwear: ["", "short cape", "detached sleeves"],
+      head: ["hair bow", "tiara", "large hair bow", "star hair ornament", "headset"],
+      accessory: ["", "frilled gloves", "microphone", "wrist cuffs", "star accessory"]
+    }
+  },
+
+  bunny: {
+    label: "バニー",
+    slots: {
+      main: [
+        "playboy bunny", "bunny suit", "black leotard, bunny",
+        "white bunny suit", "strapless leotard, bunny", "red bunny suit"
+      ],
+      legwear: ["black pantyhose", "fishnet pantyhose", "sheer pantyhose"],
+      shoes: ["high heels", "stiletto heels"],
+      outerwear: ["", ""],
+      head: ["rabbit ears", "fake animal ears", "bunny ears, headband"],
+      accessory: ["wrist cuffs", "bowtie", "detached collar", "rabbit tail"]
+    }
+  },
+
+  wedding: {
+    label: "ウェディング",
+    slots: {
+      main: [
+        "wedding dress", "white wedding dress", "strapless wedding dress",
+        "lace wedding dress", "ball gown wedding dress", "mermaid wedding dress"
+      ],
+      legwear: ["white thighhighs", "", "white stockings, lace trim"],
+      shoes: ["white heels", "white high heels", "strappy heels"],
+      outerwear: ["", "shawl", "bridal cape"],
+      head: ["bridal veil", "veil", "tiara", "flower crown", "white flower hair ornament"],
+      accessory: ["", "bouquet", "pearl necklace", "long white gloves"]
+    }
+  },
+
+  magical: {
+    label: "魔法少女",
+    slots: {
+      main: [
+        "magical girl", "magical girl outfit, frills", "magical girl dress, layered skirt",
+        "sailor-style magical girl outfit", "frilly magical girl costume"
+      ],
+      legwear: ["white thighhighs", "striped thighhighs", "over-knee socks", "frilled thighhighs"],
+      shoes: ["knee-high boots", "mary janes", "white boots", "ribbon-laced boots"],
+      outerwear: ["", "short cape", "flowing ribbon", "detached sleeves"],
+      head: ["tiara", "hair bow", "large ribbon", "circlet", "magical girl hair ornament"],
+      accessory: ["magic wand", "frilled gloves", "brooch", "star accessory"]
+    }
+  },
+
+  military: {
+    label: "軍服",
+    slots: {
+      main: [
+        "military uniform", "military uniform, skirt", "officer uniform",
+        "camouflage uniform", "military jacket, shorts", "combat uniform"
+      ],
+      legwear: ["black thighhighs", "", "black pantyhose", "knee-high socks"],
+      shoes: ["combat boots", "military boots", "knee-high boots"],
+      outerwear: ["", "military coat", "long coat", "cape"],
+      head: ["", "military hat", "peaked cap", "beret", "helmet"],
+      accessory: ["", "belt", "gloves", "epaulettes", "holster"]
+    }
+  },
+
+  gymswim: {
+    label: "体操服・スク水",
+    slots: {
+      main: [
+        "gym uniform, buruma", "white shirt, buruma", "school swimsuit",
+        "one-piece school swimsuit", "gym shirt, short shorts", "sailor swimsuit"
+      ],
+      legwear: ["white socks", "kneehighs", "", "loose socks"],
+      shoes: ["sneakers", "indoor shoes", "uwabaki", "barefoot"],
+      outerwear: ["", "", "track jacket", "gym jacket"],
+      head: ["", "headband", "hair tie", "swim cap"],
+      accessory: ["", "name tag", "whistle", "towel around neck"]
+    }
+  },
+
+  ethnic: {
+    label: "民族衣装",
+    slots: {
+      main: [
+        "folk costume", "dirndl", "traditional dress, embroidery",
+        "ethnic dress", "peasant blouse, embroidered skirt", "flamenco dress"
+      ],
+      legwear: ["white stockings", "", "knee socks"],
+      shoes: ["leather shoes", "sandals", "ankle boots"],
+      outerwear: ["", "shawl", "embroidered vest", "apron"],
+      head: ["flower crown", "headscarf", "braided hair", "flower hair ornament", ""],
+      accessory: ["", "beaded necklace", "embroidered sash", "folk jewelry"]
     }
   }
 };
