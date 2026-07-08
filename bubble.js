@@ -24,6 +24,10 @@ const VERT_ROTATE = new Set(
    "［", "］", "〈", "〉", "《", "》", "(", ")", "~", "-"]
 );
 
+// 縦書きで文字マスの「右上」に寄せる句読点（CSS vertical-rl と見た目を合わせる）
+const VERT_PUNCT_TR = new Set(["、", "。", "，", "．", "､", "｡"]);
+const VPUNCT_SHIFT = 0.5; // 右上への寄せ量（フォントサイズ比・調整可）
+
 const TAIL_DEG = { br: 58, bl: 122, tr: 302, tl: 238 }; // しっぽの基準角（y下向き）
 const NO_TAIL = new Set(["spike", "square"]);            // しっぽを付けない形
 const hasTail = (shape) => !NO_TAIL.has(shape);
@@ -433,6 +437,7 @@ function drawVerticalText(ctx, text, x, y, w, h, fontFamily, fontPx, fillColor, 
     ctx.save();
     ctx.translate(px, py);
     if (VERT_ROTATE.has(ch)) ctx.rotate(Math.PI / 2);
+    else if (VERT_PUNCT_TR.has(ch)) ctx.translate(fontPx * VPUNCT_SHIFT, -fontPx * VPUNCT_SHIFT); // 読点/句点は右上へ
     if (outlineColor) { ctx.strokeStyle = outlineColor; ctx.lineWidth = outlineW * 2; ctx.strokeText(ch, 0, 0); }
     ctx.fillStyle = fillColor;
     ctx.fillText(ch, 0, 0);
