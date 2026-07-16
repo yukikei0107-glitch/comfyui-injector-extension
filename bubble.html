@@ -43,6 +43,7 @@
   .tailbtn.active { background: #f9e2af !important; color: #1e1e2e !important; }
   .tailbtn:disabled { opacity: .3; cursor: not-allowed; }
   .zbtn { padding: 0 !important; width: 26px; height: 23px; font-size: 13px; background: #45475a !important; }
+  #tpos-val { min-width: 30px; text-align: center; font-size: 11px; color: #a6adc8; }
   #hint { font-size: 11px; color: #6c7086; margin-left: auto; max-width: 240px; line-height: 1.5; }
   #stage-wrap {
     flex: 1; overflow: auto; padding: 20px; display: flex;
@@ -158,6 +159,13 @@
         <button class="zbtn" id="z-up" title="前へ">↑</button>
         <button class="zbtn" id="z-down" title="後へ">↓</button>
         <button class="zbtn" id="z-back" title="最背面">⤓</button>
+      </div>
+      <div class="sub">
+        <span>文字位置</span>
+        <button class="zbtn" id="tpos-left" title="左へ寄せる">◀</button>
+        <button class="zbtn" id="tpos-reset" title="中央に戻す">中</button>
+        <button class="zbtn" id="tpos-right" title="右へ寄せる">▶</button>
+        <span id="tpos-val">中央</span>
       </div>
     </div>
     <span id="hint">D&D/⌘V で画像 ／ ダブルクリックで文字編集 ／ Delete削除・矢印で移動・⌘D複製</span>

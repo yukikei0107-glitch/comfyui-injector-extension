@@ -102,6 +102,42 @@ async function getLiveWorkflow() {
   }
 }
 
+// ワークフローの要約（チェックポイント名・ノード数・保存名プレフィックス）を返す
+function describeWorkflow(workflow) {
+  let ckpt = "", prefix = "";
+  const nodes = Object.values(workflow || {});
+  for (const node of nodes) {
+    const type = (node.class_type || "").toLowerCase();
+    if (!ckpt && type.includes("checkpointloader") && node.inputs && node.inputs.ckpt_name) {
+      ckpt = String(node.inputs.ckpt_name).split(/[\\/]/).pop().replace(/\.(safetensors|ckpt)$/i, "");
+    }
+    if (!prefix && node.class_type === "SaveImage" && node.inputs && node.inputs.filename_prefix) {
+      prefix = String(node.inputs.filename_prefix).split("/").pop();
+    }
+  }
+  const parts = [];
+  if (ckpt) parts.push(`model:${ckpt}`);
+  if (prefix) parts.push(`保存名:${prefix}`);
+  parts.push(`${nodes.length}ノード`);
+  return parts.join(" / ");
+}
+
+// 生成に使ったワークフローの取得元と内容を画面に表示
+function setWfInfo(source, workflow) {
+  const el = document.getElementById("wf-info");
+  if (!el) return;
+  const desc = describeWorkflow(workflow);
+  if (source === "live") {
+    el.style.color = "#a6adc8";
+    el.textContent = `✅ ライブ: ComfyUIタブのグラフ（${desc}）`;
+  } else if (source === "history") {
+    el.style.color = "#f9e2af";
+    el.textContent = `⚠️ 履歴フォールバック: 最後の生成を使用（${desc}）`;
+  } else {
+    el.textContent = "";
+  }
+}
+
 // ===== 生成タイム表示（生成中はリアルタイム更新、完了で確定） =====
 let genTimerId = null;
 function startGenTimer(t0) {
@@ -142,13 +178,16 @@ async function generateImages(count = 1) {
   try {
     // ComfyUIエディタに今ロードされているグラフを使う（本体のQueueと同じ＝同じ速度）
     let workflow = await getLiveWorkflow();
+    let wfSource = "live";
     if (!workflow) {
       // フォールバック：取得できなければ履歴の最後のワークフロー
+      wfSource = "history";
       const history = await bgFetch(`${COMFYUI_BASE}/history`);
       const keys = Object.keys(history);
       if (!keys.length) { setStatus("ワークフローを取得できませんでした（ComfyUIタブを開いてください）", true); return; }
       workflow = history[keys[keys.length - 1]].prompt[2];
     }
+    setWfInfo(wfSource, workflow); // 取得元と内容を表示
 
     // ポジティブプロンプトを差し替え
     for (const [id, node] of Object.entries(workflow)) {
