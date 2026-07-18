@@ -203,6 +203,15 @@
         <div class="section-label">動作パーツ（🔍確認 / 🎲振り直し / 🔒固定）</div>
         <div class="slots" id="act-slots"></div>
 
+        <div class="section-label">背景ワード（言葉→AIで簡単な背景にして背景スロットへ）</div>
+        <div style="display:flex;gap:6px;flex:0 0 auto;">
+          <input type="text" id="act-bg-word" placeholder="例: 桜 / 星空 / 教室 / 夕焼け" style="flex:1;" />
+          <button class="btn btn-ai" id="btn-bg-make" style="flex:0 0 auto;">🪄 反映</button>
+        </div>
+
+        <div class="section-label">自由入力（動作に追記→現在の動作へ反映）</div>
+        <input type="text" id="act-free" placeholder="例: looking back, from behind（自由にタグ追記）" style="flex:0 0 auto;" />
+
         <div class="section-label">現在の動作</div>
         <div class="preview" id="act-preview" style="color:#f9e2af;">🎲を押すと動作を提案します</div>
 
@@ -215,6 +224,13 @@
       <!-- 右：生成プレビュー（大）＋生成3枚＋お取り置き＋参考 -->
       <div class="right">
         <input type="text" id="gen-prompt" placeholder="プレビュー用プロンプト（衣装の前に付く固定部分）" style="flex:0 0 auto;" />
+        <label style="display:flex;align-items:center;gap:6px;flex:0 0 auto;font-size:12px;color:#bac2de;cursor:pointer;">
+          <input type="checkbox" id="gen-hires" style="width:auto;flex:0 0 auto;margin:0;"> 🖼 高解像度で生成（縮小なし・元の944×2048。遅いが高画質）
+        </label>
+        <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto;">
+          <button class="btn btn-copy" id="cos-set-savedir" style="flex:0 0 auto;padding:6px 10px;">📁 保存先</button>
+          <span id="cos-savedir-status" style="flex:1;font-size:11px;color:#6c7086;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">保存先: ダウンロードフォルダ（既定）</span>
+        </div>
 
         <div class="gen-area">
           <!-- 左：944×2048比率の簡易プレビュー（◀▶は下部にオーバーレイ）-->
@@ -228,6 +244,7 @@
               <button class="btn btn-copy" id="gen-prev" style="padding:4px 12px;">◀</button>
               <span id="gen-counter" style="font-size:11px;color:#fff;min-width:46px;text-align:center;">– / –</span>
               <button class="btn btn-copy" id="gen-next" style="padding:4px 12px;">▶</button>
+              <button class="btn btn-gen" id="gen-download" style="padding:4px 10px;" title="表示中の画像をダウンロード">💾</button>
             </div>
           </div>
           <!-- 右：お取り置き（空いた横幅を全部使う・全身カードのグリッド）-->

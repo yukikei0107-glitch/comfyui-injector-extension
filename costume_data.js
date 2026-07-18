@@ -511,5 +511,100 @@ window.ACTION_THEMES = {
       camera: ["from above", "from below", "from side", "from behind", "dutch angle", "close-up",
                "portrait", "foreshortening", "pov", "wide shot", "fisheye", "face focus"]
     }
+  },
+
+  dance: {
+    label: "ダンス",
+    slots: {
+      pose: ["dancing", "arms up", "twirling", "leg up", "spinning", "ballet",
+             "jumping", "dynamic pose", "one leg raised", "leaning back"],
+      expression: ["smile, open mouth", "happy", "closed eyes", "light smile", "grin", "singing"],
+      hands: ["arms up", "arm up", "outstretched arms", "hands up", "reaching out", "arms out"],
+      camera: ["full body", "dynamic angle", "from below", "wide shot", "cowboy shot", "motion blur"]
+    }
+  },
+
+  shy: {
+    label: "照れ/恥じらい",
+    slots: {
+      pose: ["standing", "knees together", "pigeon-toed", "leaning forward",
+             "hunched over", "legs together", "head down"],
+      expression: ["blush", "embarrassed", "shy", "half-closed eyes", "looking away",
+                   "nervous", "flustered", "teary eyes"],
+      hands: ["own hands together", "fingers together", "hand on own cheek", "covering mouth",
+              "hands on own chest", "playing with own hair", "hands behind back"],
+      camera: ["looking away", "looking to the side", "upper body", "close-up", "from above", "face focus"]
+    }
+  },
+
+  energetic: {
+    label: "元気/はしゃぎ",
+    slots: {
+      pose: ["jumping", "arms up", "running", "standing on one leg", "leaning forward",
+             "hopping", "victory pose", "outstretched arms"],
+      expression: ["smile, open mouth", ":d", "grin", "happy", "wink", "excited"],
+      hands: ["arms up", "double peace", "peace sign", "waving", "thumbs up", "hands up", "v sign"],
+      camera: ["full body", "from below", "dynamic angle", "cowboy shot", "looking at viewer", "wide shot"]
+    }
+  },
+
+  model: {
+    label: "モデル/ポートレート",
+    slots: {
+      pose: ["contrapposto", "hand on own hip", "standing", "leaning back", "twisted torso",
+             "crossed legs", "looking over shoulder"],
+      expression: ["light smile", "closed mouth", "cool expression", "serious", "confident", "smirk"],
+      hands: ["hand on hip", "hands on hips", "hand in own hair", "hand on own chin",
+              "arms crossed", "hand near face"],
+      camera: ["from below", "from side", "cowboy shot", "full body", "portrait", "profile"]
+    }
+  },
+
+  crying: {
+    label: "泣き/感情",
+    slots: {
+      pose: ["sitting", "hugging own legs", "kneeling", "curled up", "leaning forward",
+             "head down", "trembling"],
+      expression: ["crying", "tears", "sad", "teary eyes", "crying with eyes open",
+                   "frown", "sobbing", "wavy mouth"],
+      hands: ["wiping tears", "hands on own face", "covering face", "hands on own chest",
+              "clenched hands", "hand over own mouth"],
+      camera: ["close-up", "from above", "upper body", "face focus", "looking down", "dutch angle"]
+    }
+  },
+
+  combat: {
+    label: "バトル/戦闘",
+    slots: {
+      pose: ["fighting stance", "battle stance", "holding sword", "sword up", "punching",
+             "kicking", "guard", "leaping", "dodging", "aiming"],
+      expression: ["serious", "determined", "clenched teeth", "angry", "confident", "shouting"],
+      hands: ["holding sword", "holding weapon", "clenched hand", "outstretched arm",
+              "drawing sword", "aiming", "fist"],
+      camera: ["from below", "dynamic angle", "foreshortening", "wide shot", "full body", "motion blur"]
+    }
+  },
+
+  relax: {
+    label: "リラックス",
+    slots: {
+      pose: ["sitting", "lying", "leaning back", "stretching", "cross-legged sitting",
+             "reclining", "on side", "arms behind head"],
+      expression: ["closed eyes", "light smile", "sleepy", "relaxed", "yawning", "gentle smile"],
+      hands: ["arms behind head", "hands behind head", "stretching arms", "hand on own cheek",
+              "holding cup", "hands on lap"],
+      camera: ["from above", "from side", "upper body", "cowboy shot", "looking at viewer", "eye level"]
+    }
+  },
+
+  casting: {
+    label: "魔法/詠唱",
+    slots: {
+      pose: ["arms raised", "outstretched arm", "holding staff", "floating", "standing",
+             "leaning forward", "arms outstretched"],
+      expression: ["serious", "closed eyes", "determined", "confident", "smile"],
+      hands: ["outstretched hand", "holding staff", "arms raised", "pointing", "open palm", "holding wand"],
+      camera: ["from below", "dynamic angle", "full body", "wide shot", "foreshortening", "backlighting"]
+    }
   }
 };

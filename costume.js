@@ -161,7 +161,7 @@ function render() {
 // ===== 動作ガチャ（衣装と独立して引ける・送信/生成で合体） =====
 const ASLOTS = window.ACTION_SLOTS || [];
 const ATHEMES = Object.assign({}, window.ACTION_THEMES || {});
-const astate = { theme: "omakase", slots: {} };
+const astate = { theme: "omakase", free: "", slots: {} };
 for (const s of ASLOTS) astate.slots[s.key] = { value: "", locked: false };
 
 function resolveActTheme() {
@@ -186,7 +186,12 @@ function rollActAll() {
   renderAct();
 }
 function rollActSlot(key) { astate.slots[key].value = rollActOne(resolveActTheme(), key); renderAct(); }
-function buildActionString() { return ASLOTS.map(s => (astate.slots[s.key].value || "").trim()).filter(Boolean).join(", "); }
+function buildActionString() {
+  const slotStr = ASLOTS.map(s => (astate.slots[s.key].value || "").trim()).filter(Boolean).join(", ");
+  const free = (astate.free || "").trim(); // 自由入力行を末尾に追記
+  return [slotStr, free].filter(Boolean).join(", ");
+}
+function updateActPreview() { const pv = document.getElementById("act-preview"); if (pv) pv.textContent = buildActionString() || "（空）"; }
 
 // 衣装＋動作を合体した最終タグ（送信・コピー・生成で使用）
 function buildCombined() {
@@ -322,6 +327,36 @@ function aiProposeAction() {
   });
 }
 
+// 背景ワード（日本語OK）→ AIで簡単な背景タグにして背景スロットへ反映
+function makeBackgroundFromWord() {
+  const inp = document.getElementById("act-bg-word");
+  const word = (inp.value || "").trim();
+  if (!word) { toast("背景ワードを入力してください", "#f9e2af"); return; }
+  const btn = document.getElementById("btn-bg-make");
+  btn.disabled = true; btn.textContent = "作成中...";
+  chrome.runtime.sendMessage({
+    type: "ollama-generate",
+    backend: llmBackend, serverUrl: llmServerUrl, model: llmModel,
+    temperature: 0.6, maxTokens: 120,
+    system: "You convert a short user idea (may be Japanese) into a SIMPLE anime image background. Output ONLY 1-4 lowercase english Danbooru-style background tags, comma-separated, no explanation, no quotes, no other lines. Keep it a simple background (pattern, sky, room, nature, cityscape, etc.), NOT a full detailed scene. Examples: 'さくら' -> 'cherry blossoms, pink background'; '星空' -> 'night sky, starry sky'; '教室' -> 'classroom, indoors'.",
+    prompt: word
+  }, (response) => {
+    btn.disabled = false; btn.textContent = "🪄 反映";
+    if (!response || !response.success || !response.response) { toast("AI変換に失敗（AIサーバー未起動？）", "#f38ba8"); return; }
+    let raw = response.response.replace(/<think>[\s\S]*?<\/think>/gi, "");
+    if (/<\/think>/i.test(raw)) raw = raw.split(/<\/think>/i).pop();
+    let line = raw.split("\n").map(s => s.trim()).filter(Boolean)[0] || "";
+    line = line.replace(/^["'`]+|["'`]+$/g, "").replace(/^background\s*[:：]\s*/i, "").trim();
+    const tags = line.split(",").map(t => t.trim()).filter(t => t && !/[぀-ヿ㐀-鿿＀-￯]/.test(t));
+    if (!tags.length) { toast("背景タグを作れませんでした", "#f9e2af"); return; }
+    let v = tags.join(", ");
+    if (!v.includes(":")) v = "(" + v + ":1.3)"; // 生成で埋もれないよう強調ウェイト
+    astate.slots.background.value = v;
+    renderAct();
+    toast("🪄 背景に反映しました");
+  });
+}
+
 // ===== 参考（5枚並べ、◀▶で5枚ずつ送る）=====
 const REF_PAGE = 5;
 let galleryItems = []; // { url, prompt }（通常生成のみ。プレビューは除外）
@@ -341,6 +376,7 @@ function showPreviewAt(i) {
   img.onload = null; img.onerror = null; // 生成時のハンドラを無効化
   ph.style.display = "none";
   img.src = it.url; img.style.display = "block";
+  badge.textContent = it.hires ? "🖼 高解像度" : "⚠️ 低解像度プレビュー";
   badge.style.display = "block";
   const outfit = extractOutfitBySlot(it.prompt || "");
   cap.textContent = SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "";
@@ -348,7 +384,7 @@ function showPreviewAt(i) {
 }
 
 // 任意の画像（お取り置き等）を真ん中の大プレビューに表示する
-function showImageInPreview(url, prompt) {
+function showImageInPreview(url, prompt, hires) {
   const img = document.getElementById("gen-img");
   const ph = document.getElementById("gen-placeholder");
   const badge = document.getElementById("gen-badge");
@@ -356,6 +392,7 @@ function showImageInPreview(url, prompt) {
   img.onload = null; img.onerror = null;
   ph.style.display = "none";
   img.src = url; img.style.display = "block";
+  badge.textContent = hires ? "🖼 高解像度" : "⚠️ 低解像度プレビュー";
   badge.style.display = "block";
   const outfit = extractOutfitBySlot(prompt || "");
   cap.textContent = SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "";
@@ -383,10 +420,9 @@ function renderReserve() {
     const rm = document.createElement("div");
     rm.className = "rm"; rm.textContent = "×"; rm.title = "取り置きから外す";
     rm.addEventListener("click", (e) => { e.stopPropagation(); reservedList.splice(idx, 1); saveReserved(); renderReserve(); });
-    const lr = document.createElement("div");
-    lr.className = "lowres"; lr.textContent = "⚠ 低解像度";
-    cell.append(img, lr, rm);
-    cell.addEventListener("click", () => { showImageInPreview(it.url, it.prompt); applyReserved(it); });
+    cell.append(img, rm);
+    if (!it.hires) { const lr = document.createElement("div"); lr.className = "lowres"; lr.textContent = "⚠ 低解像度"; cell.append(lr); }
+    cell.addEventListener("click", () => { showImageInPreview(it.url, it.prompt, it.hires); applyReserved(it); });
     strip.appendChild(cell);
   });
 }
@@ -394,7 +430,7 @@ function reserveCurrent() {
   const it = previewList[genIndex];
   if (!it) { toast("取り置きするプレビューがありません", "#f9e2af"); return; }
   if (reservedList.some(r => r.url === it.url)) { toast("すでに取り置き済みです", "#f9e2af"); return; }
-  reservedList.unshift({ url: it.url, prompt: it.prompt, cos: it.cos, act: it.act });
+  reservedList.unshift({ url: it.url, prompt: it.prompt, cos: it.cos, act: it.act, hires: it.hires });
   saveReserved();
   renderReserve();
   toast("⭐ 取り置きしました");
@@ -493,7 +529,9 @@ function extractPositive(promptObj) {
 
 // ===== この衣装でプレビュー生成（コントロール画面のプロンプトは汚さない）=====
 let previewBusy = false;
-async function generatePreview(outfit, srcBtn) {
+async function generatePreview(outfit, srcBtn, opts) {
+  opts = opts || {};
+  const hires = !!opts.hires; // true=縮小/ステップ削減なし（元解像度で高画質）
   if (!outfit) { toast("空です。🎲を押してください", "#f9e2af"); return; }
   if (previewBusy) return;
   previewBusy = true;
@@ -566,7 +604,7 @@ async function generatePreview(outfit, srcBtn) {
     for (const node of Object.values(workflow)) {
       const type = (node.class_type || "").toLowerCase();
       if (type.includes("latent") && node.inputs && typeof node.inputs.width === "number" && typeof node.inputs.height === "number") {
-        if (Math.max(node.inputs.width, node.inputs.height) >= 1024) { // 十分大きいときだけ縮小（小さすぎ→真っ黒を回避）
+        if (!hires && Math.max(node.inputs.width, node.inputs.height) >= 1024) { // 高解像度でなく十分大きいときだけ縮小（小さすぎ→真っ黒を回避）
           node.inputs.width = Math.max(384, Math.round(node.inputs.width * 0.5 / 64) * 64);
           node.inputs.height = Math.max(384, Math.round(node.inputs.height * 0.5 / 64) * 64);
         }
@@ -575,17 +613,19 @@ async function generatePreview(outfit, srcBtn) {
       if (type === "ksampler" && node.inputs) {
         if ("seed" in node.inputs) node.inputs.seed = Math.floor(Math.random() * 2 ** 32);
         if (typeof node.inputs.steps === "number") {
-          node.inputs.steps = Math.min(node.inputs.steps, 8);
+          if (!hires) node.inputs.steps = Math.min(node.inputs.steps, 8);
           info = `${node.inputs.steps}steps`;
         }
       } else if (type === "ksampleradvanced" && node.inputs) {
         if ("noise_seed" in node.inputs) node.inputs.noise_seed = Math.floor(Math.random() * 2 ** 32);
         else if ("seed" in node.inputs) node.inputs.seed = Math.floor(Math.random() * 2 ** 32);
-        if (typeof node.inputs.steps === "number") { // KSamplerAdvancedも軽くする（本番並みに重くならないよう）
-          const orig = node.inputs.steps;
-          node.inputs.steps = Math.min(orig, 8);
-          if (typeof node.inputs.end_at_step === "number" && node.inputs.end_at_step >= orig) node.inputs.end_at_step = node.inputs.steps; // 最後まで指定なら縮小stepsに合わせる
-          if (typeof node.inputs.start_at_step === "number" && node.inputs.start_at_step > node.inputs.steps) node.inputs.start_at_step = 0;
+        if (typeof node.inputs.steps === "number") {
+          if (!hires) { // 高解像度でなければ軽くする（本番並みに重くならないよう）
+            const orig = node.inputs.steps;
+            node.inputs.steps = Math.min(orig, 8);
+            if (typeof node.inputs.end_at_step === "number" && node.inputs.end_at_step >= orig) node.inputs.end_at_step = node.inputs.steps; // 最後まで指定なら縮小stepsに合わせる
+            if (typeof node.inputs.start_at_step === "number" && node.inputs.start_at_step > node.inputs.steps) node.inputs.start_at_step = 0;
+          }
           info = `${node.inputs.steps}steps`;
         }
       }
@@ -603,7 +643,7 @@ async function generatePreview(outfit, srcBtn) {
     if (!pid) { showGenError("キュー送信に失敗（prompt_idが返らない）"); return; }
 
     // 結果をポーリング（output/temp どちらの画像も拾う。ComfyUI側エラーも検出）
-    const deadline = performance.now() + 180000;
+    const deadline = performance.now() + (hires ? 420000 : 180000); // 高解像度は時間がかかるので長め
     let url = null, execErr = null;
     while (performance.now() < deadline && !url && !execErr) {
       await new Promise(r => setTimeout(r, 400));
@@ -628,9 +668,10 @@ async function generatePreview(outfit, srcBtn) {
     imgEl.onload = () => {
       placeholder.style.display = "none";
       imgEl.style.display = "block";
+      badge.textContent = hires ? "🖼 高解像度" : "⚠️ 低解像度プレビュー";
       badge.style.display = "block";
       caption.textContent = `${genSize ? genSize + " / " : ""}${info ? info + " / " : ""}${((performance.now() - t0) / 1000).toFixed(1)}s`;
-      previewList.unshift({ url, prompt, cos: snapSlots(state, SLOTS), act: snapSlots(astate, ASLOTS) }); // 最新プレビュー（衣装/動作スナップショット付き）
+      previewList.unshift({ url, prompt, cos: snapSlots(state, SLOTS), act: snapSlots(astate, ASLOTS), hires }); // 最新プレビュー（衣装/動作スナップショット付き）
       genIndex = 0;
       const c = document.getElementById("gen-counter"); if (c) c.textContent = `1 / ${previewList.length}`;
     };
@@ -646,12 +687,92 @@ async function generatePreview(outfit, srcBtn) {
   }
 }
 
+// ===== 画像の保存先フォルダ（control画面と同じ IndexedDB を使い、保存先を共有） =====
+let saveDirHandle = null;
+function dlIdb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open("control_dl_db", 1); // control.js と同じDB＝保存先を共有
+    req.onupgradeneeded = () => req.result.createObjectStore("kv");
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+async function dlIdbSet(k, v) { const db = await dlIdb(); return new Promise((res, rej) => { const tx = db.transaction("kv", "readwrite"); tx.objectStore("kv").put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); }); }
+async function dlIdbGet(k) { const db = await dlIdb(); return new Promise((res, rej) => { const tx = db.transaction("kv", "readonly"); const r = tx.objectStore("kv").get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+function setSaveDirStatus(msg, color) { const el = document.getElementById("cos-savedir-status"); if (el) { el.textContent = msg; el.style.color = color || "#6c7086"; } }
+async function chooseSaveDir() {
+  if (!window.showDirectoryPicker) { toast("このブラウザはフォルダ指定に未対応（Chrome系で使えます）", "#f38ba8"); return; }
+  try {
+    const h = await window.showDirectoryPicker({ mode: "readwrite" });
+    saveDirHandle = h; await dlIdbSet("saveDir", h);
+    setSaveDirStatus(`保存先: ${h.name}`, "#a6e3a1");
+    toast("📁 保存先を設定しました: " + h.name);
+  } catch (e) { if (e.name !== "AbortError") toast("フォルダ設定に失敗: " + e.message, "#f38ba8"); }
+}
+async function ensureDirPermission() {
+  if (!saveDirHandle) return false;
+  let p = await saveDirHandle.queryPermission({ mode: "readwrite" });
+  if (p !== "granted") p = await saveDirHandle.requestPermission({ mode: "readwrite" });
+  return p === "granted";
+}
+
+// 表示中のプレビュー画像を保存（保存先フォルダがあればそこへ、無ければブラウザDL。HTTP fetch→blob、SMB不要）
+async function downloadCurrentPreview() {
+  const img = document.getElementById("gen-img");
+  const src = img && img.getAttribute("src");
+  if (!src || img.style.display === "none") { toast("表示中の画像がありません", "#f9e2af"); return; }
+  const btn = document.getElementById("gen-download");
+  btn.disabled = true;
+  try {
+    const res = await fetch(src);
+    const blob = await res.blob();
+    const t = new Date(), p = n => String(n).padStart(2, "0");
+    const name = `costume_${t.getFullYear()}${p(t.getMonth()+1)}${p(t.getDate())}_${p(t.getHours())}${p(t.getMinutes())}${p(t.getSeconds())}.png`;
+    if (saveDirHandle && await ensureDirPermission()) {
+      const fh = await saveDirHandle.getFileHandle(name, { create: true });
+      const w = await fh.createWritable(); await w.write(blob); await w.close();
+      toast(`💾 保存しました: ${saveDirHandle.name}/${name}`);
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(a.href);
+      toast("💾 ダウンロードしました: " + name);
+    }
+  } catch (e) {
+    toast("ダウンロード失敗: " + (e.message || e), "#f38ba8");
+  } finally { btn.disabled = false; }
+}
+// 起動時：保存先フォルダを復元（controlで設定済みならそれを共有）
+(async () => {
+  try {
+    const h = await dlIdbGet("saveDir");
+    if (h) {
+      saveDirHandle = h;
+      const p = await h.queryPermission({ mode: "readwrite" });
+      setSaveDirStatus(p === "granted" ? `保存先: ${h.name}` : `保存先: ${h.name}（保存時に許可を確認）`, p === "granted" ? "#a6e3a1" : "#f9e2af");
+    }
+  } catch (e) {}
+})();
+
 // ===== イベント =====
-document.getElementById("btn-gen").addEventListener("click", (e) => generatePreview(buildCombined(), e.currentTarget));
-document.getElementById("btn-gen-costume").addEventListener("click", (e) => generatePreview(buildString(), e.currentTarget));
+const genHiresChk = document.getElementById("gen-hires");
+document.getElementById("btn-gen").addEventListener("click", (e) => generatePreview(buildCombined(), e.currentTarget, { hires: genHiresChk.checked }));
+document.getElementById("btn-gen-costume").addEventListener("click", (e) => generatePreview(buildString(), e.currentTarget, { hires: genHiresChk.checked }));
+document.getElementById("gen-download").addEventListener("click", downloadCurrentPreview);
+document.getElementById("cos-set-savedir").addEventListener("click", chooseSaveDir);
 document.getElementById("btn-roll").addEventListener("click", rollAll);
 document.getElementById("btn-ai").addEventListener("click", aiPropose);
 document.getElementById("btn-act-ai").addEventListener("click", aiProposeAction);
+document.getElementById("act-free").addEventListener("input", (e) => {
+  astate.free = e.target.value;
+  updateActPreview();
+  try { chrome.storage.local.set({ costume_action_state: astate }); } catch (err) {}
+});
+document.getElementById("btn-bg-make").addEventListener("click", makeBackgroundFromWord);
+document.getElementById("act-bg-word").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); makeBackgroundFromWord(); }
+});
 document.getElementById("btn-act-send").addEventListener("click", () => {
   const str = buildCombined();
   if (!str) { toast("衣装も動作も空です。🎲を押してください", "#f9e2af"); return; }
@@ -720,6 +841,7 @@ document.getElementById("btn-send").addEventListener("click", () => {
     const saved = d && d.costume_action_state;
     if (saved && saved.slots) {
       if (ATHEMES[saved.theme]) astate.theme = saved.theme;
+      astate.free = saved.free || "";
       for (const s of ASLOTS) {
         if (saved.slots[s.key]) astate.slots[s.key] = { value: saved.slots[s.key].value || "", locked: !!saved.slots[s.key].locked };
       }
@@ -727,6 +849,7 @@ document.getElementById("btn-send").addEventListener("click", () => {
     } else {
       rollActAll();
     }
+    const fEl = document.getElementById("act-free"); if (fEl) fEl.value = astate.free || "";
   });
   // プレビュー用プロンプト欄：保存値 or 既定値をセットし、変更を保存
   const gp = document.getElementById("gen-prompt");
