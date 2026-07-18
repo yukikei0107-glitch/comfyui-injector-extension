@@ -17,6 +17,9 @@
 
     /* 左：ガチャ（スクロールさせず、パーツ欄だけ内部スクロール） */
     .left { flex: 0 0 400px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+    /* 中：動作ガチャ */
+    .mid { flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+    .mid-title { font-size: 14px; font-weight: bold; color: #f9e2af; flex: 0 0 auto; }
     /* 右：プレビュー＋ギャラリー */
     .right { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 
@@ -180,9 +183,32 @@
         <div class="preview" id="preview">🎲を押すと衣装を提案します</div>
 
         <div class="action-row">
-          <button class="btn btn-send" id="btn-send" style="flex:1;">✍️ 送る</button>
-          <button class="btn btn-gen" id="btn-gen" style="flex:2;">▶ この衣装で生成</button>
+          <button class="btn btn-send" id="btn-send" style="flex:1;">✍️ 送る（衣装）</button>
+          <button class="btn btn-gen" id="btn-gen-costume" style="flex:1;">▶ 衣装のみ生成</button>
           <button class="btn btn-copy" id="btn-copy" style="flex:0 0 auto;">📋</button>
+        </div>
+      </div>
+
+      <!-- 中：動作ガチャ（衣装と独立して引ける／送信・生成で合体） -->
+      <div class="mid">
+        <div class="mid-title">🏃 動作ガチャ</div>
+        <div class="section-label">テーマ</div>
+        <div class="theme-row" id="act-theme-row"></div>
+
+        <div style="display:flex;gap:6px;flex:0 0 auto;">
+          <button class="btn btn-roll" id="btn-act-roll" style="flex:1;">🎲 全部振る</button>
+          <button class="btn btn-ai" id="btn-act-ai" style="flex:1;">🤖 AIで考える</button>
+        </div>
+
+        <div class="section-label">動作パーツ（🔍確認 / 🎲振り直し / 🔒固定）</div>
+        <div class="slots" id="act-slots"></div>
+
+        <div class="section-label">現在の動作</div>
+        <div class="preview" id="act-preview" style="color:#f9e2af;">🎲を押すと動作を提案します</div>
+
+        <div class="action-row">
+          <button class="btn btn-send" id="btn-act-send" style="flex:1;">✍️ 送る（衣装＋動作）</button>
+          <button class="btn btn-gen" id="btn-gen" style="flex:1;">▶ 衣装＋動作の生成</button>
         </div>
       </div>
 

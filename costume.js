@@ -158,6 +158,99 @@ function render() {
   try { chrome.storage.local.set({ costume_state_full: state }); } catch (e) {}
 }
 
+// ===== 動作ガチャ（衣装と独立して引ける・送信/生成で合体） =====
+const ASLOTS = window.ACTION_SLOTS || [];
+const ATHEMES = Object.assign({}, window.ACTION_THEMES || {});
+const astate = { theme: "omakase", slots: {} };
+for (const s of ASLOTS) astate.slots[s.key] = { value: "", locked: false };
+
+function resolveActTheme() {
+  const t = ATHEMES[astate.theme];
+  if (t && t.random) {
+    const concrete = Object.keys(ATHEMES).filter(k => !ATHEMES[k].random && ATHEMES[k].slots);
+    return ATHEMES[rand(concrete)];
+  }
+  return t;
+}
+function rollActOne(themeObj, key) {
+  if (key === "background") { const b = window.ACTION_BACKGROUNDS || []; return b.length ? rand(b) : ""; } // 背景はテーマ共通プール
+  const pool = themeObj && themeObj.slots && themeObj.slots[key];
+  return pool && pool.length ? rand(pool) : "";
+}
+function rollActAll() {
+  const t = resolveActTheme();
+  for (const s of ASLOTS) {
+    if (astate.slots[s.key].locked) continue;
+    astate.slots[s.key].value = rollActOne(t, s.key);
+  }
+  renderAct();
+}
+function rollActSlot(key) { astate.slots[key].value = rollActOne(resolveActTheme(), key); renderAct(); }
+function buildActionString() { return ASLOTS.map(s => (astate.slots[s.key].value || "").trim()).filter(Boolean).join(", "); }
+
+// 衣装＋動作を合体した最終タグ（送信・コピー・生成で使用）
+function buildCombined() {
+  return [buildString(), buildActionString()].map(s => s.trim()).filter(Boolean).join(", ");
+}
+
+// スロット値のスナップショット（お取り置き復元用）
+function snapSlots(st, slots) { const o = {}; for (const s of slots) o[s.key] = (st.slots[s.key].value || ""); return o; }
+
+function renderActThemes() {
+  const row = document.getElementById("act-theme-row");
+  if (!row) return;
+  row.innerHTML = "";
+  for (const key of Object.keys(ATHEMES)) {
+    const b = document.createElement("button");
+    b.className = "theme-btn" + (key === astate.theme ? " active" : "");
+    b.textContent = ATHEMES[key].label;
+    b.addEventListener("click", () => {
+      astate.theme = key;
+      for (const s of ASLOTS) astate.slots[s.key].locked = false; // テーマ変更で固定解除
+      renderActThemes();
+      rollActAll();
+    });
+    row.appendChild(b);
+  }
+}
+function renderAct() {
+  const el = document.getElementById("act-slots");
+  if (!el) return;
+  el.innerHTML = "";
+  for (const s of ASLOTS) {
+    const st = astate.slots[s.key];
+    const row = document.createElement("div");
+    row.className = "slot";
+
+    const label = document.createElement("span");
+    label.className = "s-label"; label.textContent = s.label;
+
+    const val = document.createElement("span");
+    val.className = "s-val" + (st.value ? "" : " empty");
+    val.textContent = st.value || "—";
+
+    const searchBtn = document.createElement("button");
+    searchBtn.className = "s-btn s-roll"; searchBtn.textContent = "🔍"; searchBtn.title = "画像検索でどんな動作か確認";
+    searchBtn.addEventListener("click", () => openTagSearch(st.value));
+
+    const rollBtn = document.createElement("button");
+    rollBtn.className = "s-btn s-roll"; rollBtn.textContent = "🎲"; rollBtn.title = "この動作だけ振り直す";
+    rollBtn.addEventListener("click", () => rollActSlot(s.key));
+
+    const lockBtn = document.createElement("button");
+    lockBtn.className = "s-btn s-lock" + (st.locked ? " on" : "");
+    lockBtn.textContent = st.locked ? "🔒" : "🔓";
+    lockBtn.title = st.locked ? "固定中（クリックで解除）" : "固定して再ガチャで維持";
+    lockBtn.addEventListener("click", () => { st.locked = !st.locked; renderAct(); });
+
+    row.append(label, val, searchBtn, rollBtn, lockBtn);
+    el.appendChild(row);
+  }
+  const pv = document.getElementById("act-preview");
+  if (pv) pv.textContent = buildActionString() || "（空）";
+  try { chrome.storage.local.set({ costume_action_state: astate }); } catch (e) {}
+}
+
 // ===== AI提案 =====
 function aiPropose() {
   const themeObj = THEMES[state.theme];
@@ -191,6 +284,41 @@ function aiPropose() {
     }
     render();
     toast("🤖 AIが衣装を提案しました");
+  });
+}
+
+// 動作のAI提案（ポーズ/表情/手・腕/カメラを1セット提案）
+function aiProposeAction() {
+  const themeObj = ATHEMES[astate.theme];
+  const themeLabel = themeObj ? themeObj.label.replace(/^[🎲⭐]\s*/, "") : "any";
+  const btn = document.getElementById("btn-act-ai");
+  btn.disabled = true; btn.textContent = "考え中...";
+  chrome.runtime.sendMessage({
+    type: "ollama-generate",
+    backend: llmBackend, serverUrl: llmServerUrl, model: llmModel,
+    temperature: 0.9, maxTokens: 300,
+    system: "You are a posing director for anime image-generation prompts. Propose ONE coherent pose/action for a single adult girl. Theme/mood: " + themeLabel + ".\nOutput EXACTLY these labeled lines and nothing else. Each value is lowercase Danbooru-style comma-separated tags, or 'none':\npose: <body pose, e.g. standing / sitting / arched back>\nexpression: <face expression, e.g. smile / blush>\nhands: <hand or arm gesture, e.g. hand on hip / peace sign>\ncamera: <camera angle or gaze, e.g. looking at viewer / from below>\nbackground: <a clearly visible pattern background, e.g. polka dot background / checkered background / floral background / geometric background>\nNo explanations, no extra lines.",
+    prompt: "Theme/mood: " + themeLabel
+  }, (response) => {
+    btn.disabled = false; btn.textContent = "🤖 AIで考える";
+    if (!response || !response.success || !response.response) {
+      toast("AI提案に失敗（AIサーバー未起動？）", "#f38ba8"); return;
+    }
+    let raw = response.response.replace(/<think>[\s\S]*?<\/think>/gi, "");
+    if (/<\/think>/i.test(raw)) raw = raw.split(/<\/think>/i).pop();
+    for (const s of ASLOTS) {
+      if (astate.slots[s.key].locked) continue;
+      const m = raw.match(new RegExp("^\\s*" + s.key + "\\s*[:：]\\s*(.+)$", "im"));
+      if (m) {
+        let v = m[1].trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+        if (/^(none|なし|n\/a|-)$/i.test(v)) v = "";
+        v = v.split(",").map(t => t.trim()).filter(t => t && !/[぀-ヿ㐀-鿿＀-￯]/.test(t)).join(", ");
+        if (s.key === "background" && v && !v.includes(":")) v = "(" + v + ":1.3)"; // 背景は強調ウェイトを付ける
+        astate.slots[s.key].value = v;
+      }
+    }
+    renderAct();
+    toast("🤖 AIが動作を提案しました");
   });
 }
 
@@ -258,7 +386,7 @@ function renderReserve() {
     const lr = document.createElement("div");
     lr.className = "lowres"; lr.textContent = "⚠ 低解像度";
     cell.append(img, lr, rm);
-    cell.addEventListener("click", () => { showImageInPreview(it.url, it.prompt); applyOutfitFromPrompt(it.prompt); });
+    cell.addEventListener("click", () => { showImageInPreview(it.url, it.prompt); applyReserved(it); });
     strip.appendChild(cell);
   });
 }
@@ -266,7 +394,7 @@ function reserveCurrent() {
   const it = previewList[genIndex];
   if (!it) { toast("取り置きするプレビューがありません", "#f9e2af"); return; }
   if (reservedList.some(r => r.url === it.url)) { toast("すでに取り置き済みです", "#f9e2af"); return; }
-  reservedList.unshift({ url: it.url, prompt: it.prompt });
+  reservedList.unshift({ url: it.url, prompt: it.prompt, cos: it.cos, act: it.act });
   saveReserved();
   renderReserve();
   toast("⭐ 取り置きしました");
@@ -300,6 +428,18 @@ async function loadGallery() {
 }
 
 // （参考ギャラリーは廃止）
+
+// お取り置きカードを読み込む（スナップショットがあれば衣装＋動作を正確に復元）
+function applyReserved(it) {
+  if (it && (it.cos || it.act)) {
+    if (it.cos) for (const s of SLOTS) state.slots[s.key].value = it.cos[s.key] || "";
+    if (it.act) for (const s of ASLOTS) astate.slots[s.key].value = it.act[s.key] || "";
+    render(); renderAct();
+    toast("🖼 衣装と動作を読み込みました");
+  } else {
+    applyOutfitFromPrompt(it.prompt); // 旧データ：プロンプトから衣装のみ復元
+  }
+}
 
 // 過去画像の衣装をスロットに読み込む（ロック中のスロットは維持）
 function applyOutfitFromPrompt(promptText) {
@@ -353,18 +493,18 @@ function extractPositive(promptObj) {
 
 // ===== この衣装でプレビュー生成（コントロール画面のプロンプトは汚さない）=====
 let previewBusy = false;
-async function generatePreview() {
-  const outfit = buildString();
-  if (!outfit) { toast("衣装が空です。🎲を押してください", "#f9e2af"); return; }
+async function generatePreview(outfit, srcBtn) {
+  if (!outfit) { toast("空です。🎲を押してください", "#f9e2af"); return; }
   if (previewBusy) return;
   previewBusy = true;
-  const btn = document.getElementById("btn-gen");
+  const genBtns = [document.getElementById("btn-gen"), document.getElementById("btn-gen-costume")];
   const spinner = document.getElementById("gen-spinner");
   const placeholder = document.getElementById("gen-placeholder");
   const imgEl = document.getElementById("gen-img");
   const caption = document.getElementById("gen-caption");
   const badge = document.getElementById("gen-badge");
-  btn.disabled = true; btn.textContent = "生成中...";
+  genBtns.forEach(b => { if (b) b.disabled = true; });
+  if (srcBtn) srcBtn.textContent = "生成中...";
   imgEl.style.display = "none"; imgEl.removeAttribute("src"); badge.style.display = "none"; caption.textContent = "";
   spinner.style.display = "none"; // 状況は中央テキストで常に見えるように出す
   const setStage = (m) => { placeholder.textContent = m; placeholder.style.display = "block"; };
@@ -441,6 +581,13 @@ async function generatePreview() {
       } else if (type === "ksampleradvanced" && node.inputs) {
         if ("noise_seed" in node.inputs) node.inputs.noise_seed = Math.floor(Math.random() * 2 ** 32);
         else if ("seed" in node.inputs) node.inputs.seed = Math.floor(Math.random() * 2 ** 32);
+        if (typeof node.inputs.steps === "number") { // KSamplerAdvancedも軽くする（本番並みに重くならないよう）
+          const orig = node.inputs.steps;
+          node.inputs.steps = Math.min(orig, 8);
+          if (typeof node.inputs.end_at_step === "number" && node.inputs.end_at_step >= orig) node.inputs.end_at_step = node.inputs.steps; // 最後まで指定なら縮小stepsに合わせる
+          if (typeof node.inputs.start_at_step === "number" && node.inputs.start_at_step > node.inputs.steps) node.inputs.start_at_step = 0;
+          info = `${node.inputs.steps}steps`;
+        }
       }
       // プレビューは専用サブフォルダに保存（通常の出力を汚さない）
       if (node.class_type === "SaveImage" && node.inputs) {
@@ -483,7 +630,7 @@ async function generatePreview() {
       imgEl.style.display = "block";
       badge.style.display = "block";
       caption.textContent = `${genSize ? genSize + " / " : ""}${info ? info + " / " : ""}${((performance.now() - t0) / 1000).toFixed(1)}s`;
-      previewList.unshift({ url, prompt }); // 最新プレビューとして保持
+      previewList.unshift({ url, prompt, cos: snapSlots(state, SLOTS), act: snapSlots(astate, ASLOTS) }); // 最新プレビュー（衣装/動作スナップショット付き）
       genIndex = 0;
       const c = document.getElementById("gen-counter"); if (c) c.textContent = `1 / ${previewList.length}`;
     };
@@ -492,15 +639,24 @@ async function generatePreview() {
   } catch (e) {
     showGenError("生成に失敗: " + (e.message || e));
   } finally {
-    btn.disabled = false; btn.textContent = "▶ この衣装で生成";
+    genBtns.forEach(b => { if (b) b.disabled = false; });
+    const bg = document.getElementById("btn-gen"); if (bg) bg.textContent = "▶ 衣装＋動作の生成";
+    const bc = document.getElementById("btn-gen-costume"); if (bc) bc.textContent = "▶ 衣装のみ生成";
     previewBusy = false;
   }
 }
 
 // ===== イベント =====
-document.getElementById("btn-gen").addEventListener("click", generatePreview);
+document.getElementById("btn-gen").addEventListener("click", (e) => generatePreview(buildCombined(), e.currentTarget));
+document.getElementById("btn-gen-costume").addEventListener("click", (e) => generatePreview(buildString(), e.currentTarget));
 document.getElementById("btn-roll").addEventListener("click", rollAll);
 document.getElementById("btn-ai").addEventListener("click", aiPropose);
+document.getElementById("btn-act-ai").addEventListener("click", aiProposeAction);
+document.getElementById("btn-act-send").addEventListener("click", () => {
+  const str = buildCombined();
+  if (!str) { toast("衣装も動作も空です。🎲を押してください", "#f9e2af"); return; }
+  chrome.runtime.sendMessage({ type: "USE_IN_CONTROL", japanese: str }, () => toast("✍️ 衣装＋動作を翻訳欄に送りました"));
+});
 // 右上プレビュー枠：過去プレビューを◀（古い）▶（新しい）で見返す
 // ◀戻る(古い) ▶進む(新しい) で過去プレビューを行き来
 document.getElementById("gen-prev").addEventListener("click", () => { if (genIndex < previewList.length - 1) showPreviewAt(genIndex + 1); });
@@ -536,6 +692,8 @@ document.getElementById("btn-reserve-import").addEventListener("click", () => {
 });
 
 
+document.getElementById("btn-act-roll").addEventListener("click", rollActAll);
+
 document.getElementById("btn-copy").addEventListener("click", async () => {
   const str = buildString(); if (!str) return;
   const b = document.getElementById("btn-copy");
@@ -549,13 +707,27 @@ document.getElementById("btn-send").addEventListener("click", () => {
   if (!str) { toast("衣装が空です。🎲を押してください", "#f9e2af"); return; }
   // 翻訳欄（日本語→英語翻訳の入力）にだけ送る。プロンプト欄には入れない（text を送らない）
   chrome.runtime.sendMessage({ type: "USE_IN_CONTROL", japanese: str }, () => {
-    toast("✍️ 翻訳欄に送りました");
+    toast("✍️ 衣装を翻訳欄に送りました");
   });
 });
 
 // ===== 起動 =====
 (function init() {
   renderThemes();
+  // 動作ガチャ：保存状態を復元（無ければ初期ガチャ）
+  renderActThemes();
+  chrome.storage.local.get("costume_action_state", (d) => {
+    const saved = d && d.costume_action_state;
+    if (saved && saved.slots) {
+      if (ATHEMES[saved.theme]) astate.theme = saved.theme;
+      for (const s of ASLOTS) {
+        if (saved.slots[s.key]) astate.slots[s.key] = { value: saved.slots[s.key].value || "", locked: !!saved.slots[s.key].locked };
+      }
+      renderActThemes(); renderAct();
+    } else {
+      rollActAll();
+    }
+  });
   // プレビュー用プロンプト欄：保存値 or 既定値をセットし、変更を保存
   const gp = document.getElementById("gen-prompt");
   chrome.storage.local.get("costume_gen_prompt", (d) => {

@@ -377,3 +377,139 @@ window.COSTUME_THEMES = {
     }
   }
 };
+
+// ===== 動作ガチャ =====
+// ACTION_SLOTS: 動作リールの並びとラベル。ACTION_THEMES: テーマ別の各リール候補（Danbooru系タグ）。
+window.ACTION_SLOTS = [
+  { key: "pose",       label: "ポーズ" },
+  { key: "expression", label: "表情" },
+  { key: "hands",      label: "手/腕" },
+  { key: "camera",     label: "カメラ" },
+  { key: "background", label: "背景" }
+];
+
+// 背景（幾何学模様＋定番）候補。テーマ共通で使う。
+// プロンプト末尾で埋もれてしまうので強調ウェイト付き。数値を上げるとより主張が強くなる。
+window.ACTION_BACKGROUNDS = [
+  "(geometric background:1.3)", "(polka dot background:1.3)", "(striped background:1.3)",
+  "(checkered background:1.3)", "(argyle background:1.3)", "(halftone background:1.3)",
+  "(grid background:1.3)", "(plaid background:1.3)", "(floral background:1.3)",
+  "(heart background:1.3)", "(starry background:1.3)", "(sparkle background:1.3)",
+  "(sunburst:1.3)", "(colorful background:1.3)", "(abstract background:1.2)",
+  "(emphasis lines:1.2)", "(speed lines:1.2)"
+];
+
+window.ACTION_THEMES = {
+  omakase: { label: "🎲 おまかせ", random: true },
+
+  natural: {
+    label: "日常/自然",
+    slots: {
+      pose: ["standing", "sitting", "walking", "leaning forward", "leaning back",
+             "cross-legged sitting", "kneeling", "standing on one leg", "crouching", "head tilt"],
+      expression: ["smile", "light smile", "closed eyes", "open mouth", "blush",
+                   "happy", "smile, open mouth", "expressionless", "gentle smile"],
+      hands: ["hand on own cheek", "own hands together", "adjusting hair", "hand in own hair",
+              "hands behind back", "arm behind back", "hands on lap", "holding own arm"],
+      camera: ["looking at viewer", "looking to the side", "upper body", "cowboy shot",
+               "from side", "straight-on"]
+    }
+  },
+
+  standing: {
+    label: "立ちポーズ",
+    slots: {
+      pose: ["standing", "contrapposto", "standing on one leg", "tiptoes", "arms at sides",
+             "leaning back", "twisted torso", "walking", "back turned", "hand on own hip"],
+      expression: ["smile", "light smile", "confident", "closed mouth", "open mouth", "cool expression"],
+      hands: ["hand on hip", "hands on hips", "arms crossed", "hands behind back",
+              "hand in own hair", "arm up", "peace sign", "hands behind head"],
+      camera: ["full body", "cowboy shot", "from below", "from side", "looking at viewer", "dynamic angle"]
+    }
+  },
+
+  sitting: {
+    label: "座り",
+    slots: {
+      pose: ["sitting", "wariza", "seiza", "yokozuwari", "cross-legged sitting", "sitting on chair",
+             "sitting on floor", "knees to chest", "hugging own legs", "sitting on bed", "kneeling"],
+      expression: ["smile", "light smile", "closed eyes", "blush", "gentle smile", "open mouth"],
+      hands: ["hands on lap", "hands on own knees", "hand on own cheek", "hands behind back",
+              "own hands together", "adjusting hair", "arms supporting"],
+      camera: ["from above", "from side", "cowboy shot", "upper body", "looking at viewer", "eye level"]
+    }
+  },
+
+  lying: {
+    label: "寝そべり",
+    slots: {
+      pose: ["lying", "on back", "on stomach", "on side", "arms up", "knees up",
+             "legs up", "stretching", "curled up", "arm up"],
+      expression: ["smile", "closed eyes", "sleepy", "blush", "light smile", "open mouth", "half-closed eyes"],
+      hands: ["arms up", "hands above head", "hand on own cheek", "own hands together",
+              "arm up", "hands behind head"],
+      camera: ["from above", "from side", "close-up", "looking at viewer", "dutch angle", "upper body"]
+    }
+  },
+
+  dynamic: {
+    label: "アクション",
+    slots: {
+      pose: ["running", "jumping", "mid-air", "leaping", "fighting stance", "dynamic pose",
+             "action pose", "kicking", "leaning forward", "outstretched arm", "twisting"],
+      expression: ["open mouth", "shouting", "determined", "grin", "serious", "clenched teeth", "confident"],
+      hands: ["outstretched arm", "reaching out", "clenched hand", "arm up", "pointing", "arms out"],
+      camera: ["dynamic angle", "from below", "foreshortening", "wide shot", "full body", "action pose"]
+    }
+  },
+
+  cute: {
+    label: "あざとかわいい",
+    slots: {
+      pose: ["standing", "leaning forward", "head tilt", "knees together", "pigeon-toed",
+             "curtsey", "wariza", "tiptoes", "hopping"],
+      expression: ["smile, open mouth", "wink", "one eye closed", ":d", "happy",
+                   "blush, smile", "tongue out", "star-shaped pupils"],
+      hands: ["peace sign", "double peace", "hand up", "finger to mouth", "hands on own cheeks",
+              "heart hands", "paw pose", "waving", "v over eye"],
+      camera: ["looking at viewer", "from above", "close-up", "upper body", "face focus", "selfie"]
+    }
+  },
+
+  cool: {
+    label: "クール",
+    slots: {
+      pose: ["standing", "leaning against wall", "back turned", "looking over shoulder",
+             "contrapposto", "walking", "hand on own hip", "arms crossed"],
+      expression: ["expressionless", "serious", "smug", "half-closed eyes", "closed mouth",
+                   "cool expression", "frown"],
+      hands: ["arms crossed", "hand on hip", "hands in pockets", "hand in own hair",
+              "adjusting eyewear", "arm up"],
+      camera: ["from below", "from side", "looking to the side", "dutch angle", "cowboy shot", "profile"]
+    }
+  },
+
+  sexy: {
+    label: "セクシー",
+    slots: {
+      pose: ["arched back", "bent over", "leaning forward", "lying on side", "on back",
+             "kneeling", "sitting, crossed legs", "looking over shoulder", "twisted torso"],
+      expression: ["seductive smile", "half-closed eyes", "blush", "parted lips",
+                   "bedroom eyes", "light smile", "looking at viewer, smile"],
+      hands: ["hand on own hip", "hand in own hair", "hands on own thighs", "hand on own chest",
+              "touching own face", "adjusting hair"],
+      camera: ["from below", "from side", "looking at viewer", "close-up", "cowboy shot", "dutch angle"]
+    }
+  },
+
+  camerawork: {
+    label: "カメラワーク",
+    slots: {
+      pose: ["standing", "sitting", "leaning forward", "looking back", "lying"],
+      expression: ["looking at viewer", "smile", "light smile", "closed eyes", "open mouth"],
+      hands: ["hand near face", "adjusting hair", "hand up", "own hands together"],
+      camera: ["from above", "from below", "from side", "from behind", "dutch angle", "close-up",
+               "portrait", "foreshortening", "pov", "wide shot", "fisheye", "face focus"]
+    }
+  }
+};
