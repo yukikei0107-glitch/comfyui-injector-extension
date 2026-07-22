@@ -33,7 +33,9 @@
         "history.js",
         "costume.html",
         "costume.js",
-        "costume_data.js"
+        "costume_data.js",
+        "finish.html",
+        "finish.js"
       ],
       "matches": [
         "<all_urls>"

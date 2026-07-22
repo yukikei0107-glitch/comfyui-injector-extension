@@ -5,43 +5,27 @@
   <title>衣装ガチャ</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    html, body {
-      width: 100%; height: 100%;
-      background: #1e1e2e; color: #cdd6f4;
-      font-family: "Helvetica Neue", sans-serif;
-      overflow: hidden;
-    }
-    .container { display: flex; flex-direction: column; height: 100vh; padding: 14px; gap: 8px; }
-    .title { font-size: 15px; font-weight: bold; color: #89b4fa; flex: 0 0 auto; }
-    .layout { display: flex; gap: 14px; flex: 1; min-height: 0; }
+    html, body { width: 100%; height: 100%; background: #1e1e2e; color: #cdd6f4; font-family: "Helvetica Neue", sans-serif; overflow: hidden; }
+    .container { display: flex; flex-direction: column; height: 100vh; padding: 12px; }
+    .layout { display: flex; gap: 12px; flex: 1; min-height: 0; }
 
-    /* 左：ガチャ（スクロールさせず、パーツ欄だけ内部スクロール） */
-    .left { flex: 0 0 400px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-    /* 中：動作ガチャ */
-    .mid { flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-    .mid-title { font-size: 14px; font-weight: bold; color: #f9e2af; flex: 0 0 auto; }
-    /* 右：プレビュー＋ギャラリー */
-    .right { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+    /* 衣装 : 中央 : 動作 = 1 : 1 : 1 */
+    .gacha { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 7px; min-height: 0; }
+    .midcol { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 7px; min-height: 0; }
+    .gacha-title { font-size: 14px; font-weight: bold; flex: 0 0 auto; }
 
     .section-label { font-size: 11px; color: #bac2de; font-weight: bold; flex: 0 0 auto; }
+    .row2 { display: flex; gap: 6px; flex: 0 0 auto; }
 
-    .theme-row { display: flex; flex-wrap: wrap; gap: 5px; flex: 1 1 auto; min-height: 60px; overflow-y: auto; align-content: flex-start; }
-    .theme-btn {
-      padding: 6px 11px; border: none; border-radius: 20px; cursor: pointer;
-      font-size: 11px; font-weight: bold; background: #313244; color: #cdd6f4; transition: opacity 0.15s;
-    }
+    .theme-row { display: flex; flex-wrap: wrap; gap: 5px; flex: 1 1 auto; min-height: 80px; overflow-y: auto; align-content: flex-start; }
+    .theme-btn { padding: 6px 11px; border: none; border-radius: 20px; cursor: pointer; font-size: 11px; font-weight: bold; background: #313244; color: #cdd6f4; transition: opacity 0.15s; }
     .theme-btn:hover { opacity: 0.85; }
     .theme-btn.active { background: #89b4fa; color: #1e1e2e; }
 
-    input[type="text"] {
-      width: 100%; background: #2a2a3e; color: #cdd6f4;
-      border: 1px solid #45475a; border-radius: 8px; padding: 8px 11px; font-size: 12px; outline: none; flex: 0 0 auto;
-    }
+    input[type="text"] { width: 100%; background: #2a2a3e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px; padding: 8px 11px; font-size: 12px; outline: none; flex: 0 0 auto; }
     input[type="text"]:focus { border-color: #89b4fa; }
 
-    .btn {
-      padding: 9px; border: none; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; transition: opacity 0.15s;
-    }
+    .btn { padding: 9px; border: none; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; transition: opacity 0.15s; }
     .btn:hover { opacity: 0.85; }
     .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-roll { background: #f9e2af; color: #1e1e2e; }
@@ -51,10 +35,7 @@
     .btn-copy { background: #45475a; color: #cdd6f4; }
 
     .slots { flex: 0 0 auto; display: flex; flex-direction: column; gap: 4px; padding-right: 2px; }
-    .slot {
-      display: flex; align-items: center; gap: 6px;
-      background: #2a2a3e; border: 1px solid #313244; border-radius: 6px; padding: 4px 8px;
-    }
+    .slot { display: flex; align-items: center; gap: 6px; background: #2a2a3e; border: 1px solid #313244; border-radius: 6px; padding: 4px 8px; }
     .slot .s-label { flex: 0 0 56px; font-size: 11px; color: #bac2de; font-weight: bold; }
     .slot .s-val { flex: 1; font-size: 12px; color: #cdd6f4; word-break: break-word; }
     .slot .s-val.empty { color: #45475a; }
@@ -63,179 +44,77 @@
     .s-lock { background: #313244; color: #1e1e2e; }
     .s-lock.on { background: #f9e2af; }
 
-    .preview {
-      background: #2a2a3e; border: 1px solid #45475a; border-radius: 8px; padding: 9px;
-      font-size: 12px; color: #a6e3a1; line-height: 1.5; word-break: break-word; flex: 0 0 auto; max-height: 78px; overflow-y: auto;
-    }
+    .preview { background: #2a2a3e; border: 1px solid #45475a; border-radius: 8px; padding: 9px; font-size: 12px; color: #a6e3a1; line-height: 1.5; word-break: break-word; flex: 0 0 auto; max-height: 62px; overflow-y: auto; }
     .action-row { display: flex; gap: 6px; flex: 0 0 auto; }
 
-    /* プレビューは944×2048比率に固定（左右余白カット＝cover） */
-    .gen-preview {
-      flex: 0 0 auto; height: 100%; max-height: 620px; aspect-ratio: 944 / 2048; min-height: 0; align-self: flex-start; position: relative;
-      background: #2a2a3e; border: 1px solid #313244; border-radius: 8px; overflow: hidden;
-    }
+    /* 中央：大プレビュー（944×2048比率に固定＝はみ出さない）＋右に取り置き */
+    .gen-main { flex: 1 1 auto; min-height: 0; display: flex; gap: 8px; }
+    .gen-preview { flex: 0 0 auto; height: 100%; min-height: 0; aspect-ratio: 944 / 2048; position: relative; background: #2a2a3e; border: 1px solid #313244; border-radius: 8px; overflow: hidden; }
     .gen-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
-    .gen-placeholder {
-      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-      color: #cdd6f4; font-size: 13px; text-align: center; padding: 20px; line-height: 1.8;
-    }
-    .gen-spinner {
-      display: none; width: 34px; height: 34px; border: 4px solid #45475a; border-top-color: #a6e3a1;
-      border-radius: 50%; animation: spin 0.8s linear infinite; position: absolute;
-    }
+    .gen-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #cdd6f4; font-size: 13px; text-align: center; padding: 16px; line-height: 1.8; }
+    .gen-spinner { display: none; width: 34px; height: 34px; border: 4px solid #45475a; border-top-color: #a6e3a1; border-radius: 50%; animation: spin 0.8s linear infinite; position: absolute; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .gen-caption {
-      position: absolute; left: 8px; top: 8px; padding: 3px 8px; border-radius: 6px;
-      background: rgba(0,0,0,0.55); color: #a6e3a1; font-size: 11px; font-variant-numeric: tabular-nums;
-    }
-    .gen-badge {
-      position: absolute; right: 8px; top: 8px; display: none;
-      padding: 3px 10px; border-radius: 6px; background: rgba(249,226,175,0.95); color: #1e1e2e;
-      font-size: 11px; font-weight: bold;
-    }
+    .gen-caption { position: absolute; left: 8px; top: 8px; padding: 3px 8px; border-radius: 6px; background: rgba(0,0,0,0.55); color: #a6e3a1; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .gen-badge { position: absolute; right: 8px; top: 8px; display: none; padding: 3px 10px; border-radius: 6px; background: rgba(249,226,175,0.95); color: #1e1e2e; font-size: 12px; font-weight: bold; }
+    .gen-nav { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 5px; background: rgba(0,0,0,0.5); }
 
-    /* 右下：参考ギャラリー（横スクロールのフィルムストリップ＝1枚を大きく） */
-    .gallery-head { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-    /* 参考は「1枚ずつ」大きく表示（◀▶で送る＝スクロール不要） */
-    /* 参考：画面下部フル幅のセクション */
-    .ref-section { flex: 0 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
-    /* 参考は5枚を横並び。端まで画像で埋める（object-fit: cover） */
-    .ref-row {
-      flex: 0 1 92px; min-height: 0; position: relative; display: flex; gap: 8px;
-      background: #181825; border-radius: 8px; padding: 6px;
-    }
-    .ref-cell {
-      flex: 1 1 0; min-width: 0; position: relative; background: #11111b;
-      border: 1px solid #313244; border-radius: 6px; overflow: hidden; cursor: pointer;
-    }
-    .ref-cell:hover { border-color: #89b4fa; }
-    .ref-cell img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 28%; }
-    .ref-cell .rc-cap {
-      position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 5px;
-      background: rgba(0,0,0,0.6); color: #cdd6f4; font-size: 9px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .ref-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #45475a; font-size: 12px; text-align: center; }
-    .ref-nav { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
-    .gen-nav {
-      position: absolute; left: 0; right: 0; bottom: 0; z-index: 2;
-      display: flex; align-items: center; justify-content: center; gap: 10px;
-      padding: 5px; background: rgba(0,0,0,0.5);
-    }
-    /* 生成エリア：左（大プレビュー・縦ぶち抜き）＋右（保留/お取り置き/3枚） */
-    .gen-area { flex: 1; min-height: 0; display: flex; gap: 10px; }
-    .gen-left { flex: 0 0 auto; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
-    .gen-right { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
-    .reserve-head { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-    .hold-row { flex: 0 0 34px; display: flex; align-items: center; justify-content: center; background: #181825; border-radius: 6px; color: #45475a; font-size: 10px; }
-    /* 生成したもの3枚（一番下・クリックで大プレビューに表示） */
-    .gen3-row { flex: 0 0 100px; display: flex; gap: 6px; }
-    .gen3-cell { flex: 1 1 0; min-width: 0; position: relative; background: #11111b; border: 1px solid #313244; border-radius: 6px; overflow: hidden; cursor: pointer; }
-    .gen3-cell:hover { border-color: #89b4fa; }
-    .gen3-cell.sel { border-color: #a6e3a1; }
-    .gen3-cell img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 28%; }
-    /* ⭐お取り置き：右列の中段を大きめに占有 */
-    .reserve-col { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
-    .reserve-strip {
-      flex: 1; min-height: 0; overflow-y: auto; display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      grid-auto-rows: calc((100% - 12px) / 3);
-      gap: 6px; align-content: start; background: #181825; border-radius: 6px; padding: 6px;
-    }
+    /* 画像の右：お取り置き（縦一列・3枚ぶんの高さ・超過は縦スクロール） */
+    .reserve-strip { flex: 1 1 auto; min-width: 0; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: 1fr; grid-auto-rows: calc((100% - 12px) / 3); gap: 6px; background: #181825; border-radius: 8px; padding: 6px; align-content: start; }
     .reserve-strip::-webkit-scrollbar { width: 6px; }
     .reserve-strip::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
     .reserve-cell { position: relative; border-radius: 5px; overflow: hidden; cursor: pointer; border: 1px solid #313244; background: #11111b; }
     .reserve-cell:hover { border-color: #f9e2af; }
-    .reserve-cell img { width: 100%; height: 100%; object-fit: cover; object-position: center 32%; }
-    .reserve-cell .lowres { position: absolute; left: 0; top: 0; background: rgba(243,139,168,0.92); color: #1e1e2e; font-size: 8px; font-weight: bold; padding: 1px 4px; border-bottom-right-radius: 5px; }
-    .reserve-cell .rm { position: absolute; top: 0; right: 0; background: rgba(0,0,0,0.65); color: #f38ba8; font-size: 11px; line-height: 1; padding: 1px 4px; }
-    .reserve-empty { color: #45475a; font-size: 10px; padding: 4px; text-align: center; grid-column: 1 / -1; }
+    .reserve-cell img { width: 100%; height: 100%; object-fit: cover; object-position: center 28%; }
+    .reserve-cell .lowres { position: absolute; left: 0; top: 0; background: rgba(243,139,168,0.95); color: #1e1e2e; font-size: 12px; font-weight: bold; padding: 2px 6px; border-bottom-right-radius: 8px; }
+    .reserve-cell .rm { position: absolute; top: 0; right: 0; background: rgba(0,0,0,0.7); color: #f38ba8; font-size: 13px; line-height: 1; padding: 1px 5px; }
+    .reserve-empty { color: #45475a; font-size: 11px; padding: 6px; text-align: center; }
 
-    #toast {
-      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px);
-      background: #a6e3a1; color: #1e1e2e; padding: 10px 18px; border-radius: 8px;
-      font-size: 13px; font-weight: bold; box-shadow: 0 4px 16px rgba(0,0,0,0.4);
-      opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 9999;
-    }
+    #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px); background: #a6e3a1; color: #1e1e2e; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: bold; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 9999; }
   </style>
 </head>
 <body>
   <div class="container">
-    <div class="title">👗 衣装ガチャ</div>
     <div class="layout">
 
-      <!-- 左：ガチャ -->
-      <div class="left">
+      <!-- 衣装ガチャ（＋衣装側の生成） -->
+      <div class="gacha">
+        <div class="gacha-title" style="color:#89b4fa;">👗 衣装</div>
         <div class="section-label">テーマ</div>
         <div class="theme-row" id="theme-row"></div>
-
         <input type="text" id="costume-vibe" placeholder="雰囲気(任意) 例: 秋っぽい / セクシー" />
-
-        <div style="display:flex;gap:6px;flex:0 0 auto;">
+        <div class="row2">
           <button class="btn btn-roll" id="btn-roll" style="flex:1;">🎲 全部振る</button>
           <button class="btn btn-ai" id="btn-ai" style="flex:1;">🤖 AIで考える</button>
         </div>
-
         <div class="section-label">パーツ（🔍確認 / 🎲振り直し / 🔒固定）</div>
         <div class="slots" id="slots"></div>
-
         <div class="section-label">現在の衣装</div>
         <div class="preview" id="preview">🎲を押すと衣装を提案します</div>
-
+        <button class="btn btn-gen" id="btn-gen-costume" style="flex:0 0 auto;">▶ 衣装のみ生成</button>
         <div class="action-row">
           <button class="btn btn-send" id="btn-send" style="flex:1;">✍️ 送る（衣装）</button>
-          <button class="btn btn-gen" id="btn-gen-costume" style="flex:1;">▶ 衣装のみ生成</button>
           <button class="btn btn-copy" id="btn-copy" style="flex:0 0 auto;">📋</button>
         </div>
-      </div>
-
-      <!-- 中：動作ガチャ（衣装と独立して引ける／送信・生成で合体） -->
-      <div class="mid">
-        <div class="mid-title">🏃 動作ガチャ</div>
-        <div class="section-label">テーマ</div>
-        <div class="theme-row" id="act-theme-row"></div>
-
-        <div style="display:flex;gap:6px;flex:0 0 auto;">
-          <button class="btn btn-roll" id="btn-act-roll" style="flex:1;">🎲 全部振る</button>
-          <button class="btn btn-ai" id="btn-act-ai" style="flex:1;">🤖 AIで考える</button>
-        </div>
-
-        <div class="section-label">動作パーツ（🔍確認 / 🎲振り直し / 🔒固定）</div>
-        <div class="slots" id="act-slots"></div>
-
-        <div class="section-label">背景ワード（言葉→AIで簡単な背景にして背景スロットへ）</div>
-        <div style="display:flex;gap:6px;flex:0 0 auto;">
-          <input type="text" id="act-bg-word" placeholder="例: 桜 / 星空 / 教室 / 夕焼け" style="flex:1;" />
-          <button class="btn btn-ai" id="btn-bg-make" style="flex:0 0 auto;">🪄 反映</button>
-        </div>
-
-        <div class="section-label">自由入力（動作に追記→現在の動作へ反映）</div>
-        <input type="text" id="act-free" placeholder="例: looking back, from behind（自由にタグ追記）" style="flex:0 0 auto;" />
-
-        <div class="section-label">現在の動作</div>
-        <div class="preview" id="act-preview" style="color:#f9e2af;">🎲を押すと動作を提案します</div>
-
-        <div class="action-row">
-          <button class="btn btn-send" id="btn-act-send" style="flex:1;">✍️ 送る（衣装＋動作）</button>
-          <button class="btn btn-gen" id="btn-gen" style="flex:1;">▶ 衣装＋動作の生成</button>
-        </div>
-      </div>
-
-      <!-- 右：生成プレビュー（大）＋生成3枚＋お取り置き＋参考 -->
-      <div class="right">
-        <input type="text" id="gen-prompt" placeholder="プレビュー用プロンプト（衣装の前に付く固定部分）" style="flex:0 0 auto;" />
-        <label style="display:flex;align-items:center;gap:6px;flex:0 0 auto;font-size:12px;color:#bac2de;cursor:pointer;">
-          <input type="checkbox" id="gen-hires" style="width:auto;flex:0 0 auto;margin:0;"> 🖼 高解像度で生成（縮小なし・元の944×2048。遅いが高画質）
-        </label>
+        <input type="text" id="gen-prompt" placeholder="プレビュー用プロンプト（固定部分）" />
         <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto;">
           <button class="btn btn-copy" id="cos-set-savedir" style="flex:0 0 auto;padding:6px 10px;">📁 保存先</button>
-          <span id="cos-savedir-status" style="flex:1;font-size:11px;color:#6c7086;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">保存先: ダウンロードフォルダ（既定）</span>
+          <span id="cos-savedir-status" style="flex:1;font-size:10px;color:#6c7086;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">保存先: DLフォルダ（既定）</span>
         </div>
+      </div>
 
-        <div class="gen-area">
-          <!-- 左：944×2048比率の簡易プレビュー（◀▶は下部にオーバーレイ）-->
+      <!-- 中央：高解像度/取り置きボタン＋大プレビュー＋右に取り置き -->
+      <div class="midcol">
+        <label style="display:flex;align-items:center;gap:6px;flex:0 0 auto;font-size:12px;color:#bac2de;cursor:pointer;">
+          <input type="checkbox" id="gen-hires" style="width:auto;flex:0 0 auto;margin:0;"> 🖼 高解像度で生成（縮小なし・944×2048）
+        </label>
+        <div class="row2">
+          <button class="btn btn-roll" id="btn-reserve" style="flex:1;">⭐ 直前を取り置き</button>
+          <button class="btn btn-copy" id="btn-reserve-export" style="flex:0 0 auto;padding:9px 11px;" title="取り置きをファイルに保存（バックアップ）">💾 保存</button>
+          <button class="btn btn-copy" id="btn-reserve-import" style="flex:0 0 auto;padding:9px 11px;" title="バックアップから読み出し">♻️ 読出</button>
+        </div>
+        <div class="gen-main">
           <div class="gen-preview" id="gen-preview">
-            <div class="gen-placeholder" id="gen-placeholder">「▶ この衣装で生成」で<br>ここに簡易プレビュー</div>
+            <div class="gen-placeholder" id="gen-placeholder">左右でガチャ →<br>「▶ 生成」で<br>ここに大プレビュー</div>
             <div class="gen-spinner" id="gen-spinner"></div>
             <img id="gen-img" alt="プレビュー">
             <div class="gen-badge" id="gen-badge">⚠️ 低解像度プレビュー</div>
@@ -247,18 +126,36 @@
               <button class="btn btn-gen" id="gen-download" style="padding:4px 10px;" title="表示中の画像をダウンロード">💾</button>
             </div>
           </div>
-          <!-- 右：お取り置き（空いた横幅を全部使う・全身カードのグリッド）-->
-          <div class="gen-right">
-            <div class="reserve-head">
-              <button class="btn btn-roll" id="btn-reserve" style="flex:0 0 auto;padding:6px 12px;">⭐ 直前を取り置き</button>
-              <span class="section-label" style="flex:1;">お取り置き（クリックで衣装を読込）</span>
-              <button class="btn btn-copy" id="btn-reserve-export" style="flex:0 0 auto;padding:6px 9px;" title="お取り置きをファイルに書き出し（バックアップ）">💾</button>
-              <button class="btn btn-copy" id="btn-reserve-import" style="flex:0 0 auto;padding:6px 9px;" title="バックアップから復元">♻️</button>
-            </div>
-            <div class="reserve-strip" id="reserve-strip"></div>
-          </div>
+          <!-- 画像の右：お取り置き -->
+          <div class="reserve-strip" id="reserve-strip"></div>
         </div>
+      </div>
 
+      <!-- 動作ガチャ（＋合体生成・仕上げ） -->
+      <div class="gacha">
+        <div class="gacha-title" style="color:#f9e2af;">🏃 動作</div>
+        <div class="section-label">テーマ</div>
+        <div class="theme-row" id="act-theme-row"></div>
+        <div class="row2">
+          <button class="btn btn-roll" id="btn-act-roll" style="flex:1;">🎲 全部振る</button>
+          <button class="btn btn-ai" id="btn-act-ai" style="flex:1;">🤖 AIで考える</button>
+        </div>
+        <div class="section-label">動作パーツ（🔍確認 / 🎲振り直し / 🔒固定）</div>
+        <div class="slots" id="act-slots"></div>
+        <div class="section-label">背景ワード（言葉→AIで背景に）</div>
+        <div class="row2">
+          <input type="text" id="act-bg-word" placeholder="例: 桜 / 星空 / 教室" style="flex:1;" />
+          <button class="btn btn-ai" id="btn-bg-make" style="flex:0 0 auto;">🪄</button>
+        </div>
+        <div class="section-label">自由入力（動作に追記）</div>
+        <input type="text" id="act-free" placeholder="例: looking back, from behind" />
+        <div class="section-label">現在の動作</div>
+        <div class="preview" id="act-preview" style="color:#f9e2af;">🎲を押すと動作を提案します</div>
+        <button class="btn btn-gen" id="btn-gen" style="flex:0 0 auto;">▶ 衣装＋動作で生成</button>
+        <div class="action-row">
+          <button class="btn btn-send" id="btn-act-send" style="flex:1;">✍️ 送る（衣装＋動作）</button>
+        </div>
+        <button class="btn btn-ai" id="open-finish" style="flex:0 0 auto;">🖼 生成・仕上げ(高解像度化)へ</button>
       </div>
 
     </div>

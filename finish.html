@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>生成・仕上げ</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; background: #1e1e2e; color: #cdd6f4; font-family: "Helvetica Neue", sans-serif; overflow: hidden; }
+    .container { display: flex; flex-direction: column; height: 100vh; padding: 14px; gap: 8px; }
+    .title { font-size: 15px; font-weight: bold; color: #94e2d5; flex: 0 0 auto; }
+    .layout { display: flex; gap: 14px; flex: 1; min-height: 0; }
+
+    .left { flex: 0 0 300px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+    /* 使用前/使用後は画像幅ぴったり（余白を作らない） */
+    .imgs { flex: 0 0 auto; display: flex; gap: 12px; min-height: 0; }
+    .imgcol { flex: 0 0 300px; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+    /* 取り置きピッカーが残り幅を全部使う（3列） */
+    .picker { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+
+    .section-label { font-size: 11px; color: #bac2de; font-weight: bold; flex: 0 0 auto; }
+    input[type="text"] { width: 100%; background: #2a2a3e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px; padding: 8px 11px; font-size: 12px; outline: none; flex: 0 0 auto; }
+    input[type="text"]:focus { border-color: #89b4fa; }
+
+    .btn { padding: 9px; border: none; border-radius: 8px; font-size: 12px; font-weight: bold; cursor: pointer; transition: opacity 0.15s; }
+    .btn:hover { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-roll { background: #f9e2af; color: #1e1e2e; }
+    .btn-ai { background: #a6a1de; color: #1e1e2e; }
+    .btn-gen { background: #a6e3a1; color: #1e1e2e; }
+    .btn-send { background: #89b4fa; color: #1e1e2e; }
+    .btn-copy { background: #45475a; color: #cdd6f4; }
+    .action-row { display: flex; gap: 6px; flex: 0 0 auto; }
+
+    .preview { background: #2a2a3e; border: 1px solid #45475a; border-radius: 8px; padding: 9px; font-size: 12px; color: #a6e3a1; line-height: 1.5; word-break: break-word; flex: 0 0 auto; max-height: 130px; overflow-y: auto; }
+
+    /* 使用前/使用後の大画像（列幅ぴったりに縦いっぱい） */
+    .big-img { flex: 1 1 auto; min-height: 0; width: 100%; position: relative; background: #2a2a3e; border: 1px solid #313244; border-radius: 8px; overflow: hidden; }
+    .big-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: none; }
+    .big-ph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #6c7086; font-size: 12px; text-align: center; padding: 16px; line-height: 1.7; }
+    .big-spin { display: none; width: 30px; height: 30px; border: 4px solid #45475a; border-top-color: #a6e3a1; border-radius: 50%; animation: spin 0.8s linear infinite; position: absolute; left: 50%; top: 50%; margin: -15px 0 0 -15px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .big-cap { position: absolute; left: 6px; top: 6px; padding: 2px 7px; border-radius: 6px; background: rgba(0,0,0,0.55); color: #a6e3a1; font-size: 11px; font-variant-numeric: tabular-nums; }
+    .big-badge { position: absolute; right: 6px; top: 6px; display: none; padding: 4px 11px; border-radius: 7px; font-size: 14px; font-weight: bold; z-index: 2; }
+    .big-badge.low { background: rgba(243,139,168,0.95); color: #1e1e2e; }
+    .big-badge.hi { background: rgba(166,227,161,0.95); color: #1e1e2e; }
+
+    /* 取り置きピッカー（縦スクロール） */
+    /* 取り置きピッカー：縦3×横3のグリッド（超過は縦スクロール） */
+    .picker-strip { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: calc((100% - 12px) / 3); gap: 6px; background: #181825; border-radius: 8px; padding: 6px; align-content: start; }
+    .picker-strip::-webkit-scrollbar { width: 6px; }
+    .picker-strip::-webkit-scrollbar-thumb { background: #45475a; border-radius: 3px; }
+    .pick-cell { position: relative; border-radius: 5px; overflow: hidden; cursor: pointer; border: 2px solid #313244; background: #11111b; }
+    .pick-cell:hover { border-color: #f9e2af; }
+    .pick-cell.sel { border-color: #a6e3a1; }
+    .pick-cell img { width: 100%; height: 100%; object-fit: cover; object-position: center 32%; }
+    .pick-cell .lowres { position: absolute; left: 0; top: 0; background: rgba(243,139,168,0.95); color: #1e1e2e; font-size: 13px; font-weight: bold; padding: 3px 8px; border-bottom-right-radius: 8px; }
+    .pick-empty { color: #45475a; font-size: 10px; padding: 6px; text-align: center; grid-column: 1 / -1; }
+
+    #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(20px); background: #a6e3a1; color: #1e1e2e; padding: 10px 18px; border-radius: 8px; font-size: 13px; font-weight: bold; box-shadow: 0 4px 16px rgba(0,0,0,0.4); opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; z-index: 9999; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="title">🖼 生成・仕上げ（取り置き画像を高解像度化）</div>
+    <div class="layout">
+
+      <!-- 左：コントロール -->
+      <div class="left">
+        <div class="action-row">
+          <button class="btn btn-send" id="open-costume" style="flex:1;">👗 衣装ガチャを開く</button>
+          <button class="btn btn-copy" id="refresh-tags" style="flex:0 0 auto;">🔄 再読込</button>
+        </div>
+
+        <div class="section-label">現在のタグ（選択中の取り置き画像）</div>
+        <div class="preview" id="cur-tags">右の「お取り置き」から画像を選んでください</div>
+
+        <div class="section-label">高解像度化の強さ（denoise）</div>
+        <div style="display:flex;align-items:center;gap:8px;flex:0 0 auto;">
+          <span style="font-size:10px;color:#7f849c;flex:0 0 auto;">忠実</span>
+          <input type="range" id="i2i-denoise" min="0.2" max="0.8" step="0.05" value="0.5" style="flex:1;min-width:60px;">
+          <span style="font-size:10px;color:#7f849c;flex:0 0 auto;">変化</span>
+          <span id="i2i-denoise-val" style="font-size:11px;color:#f9e2af;min-width:30px;text-align:right;">0.50</span>
+        </div>
+
+        <button class="btn btn-gen" id="btn-i2i" style="flex:0 0 auto;">⤴ この取り置きを高解像度化(I2I)</button>
+
+        <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto;">
+          <button class="btn btn-copy" id="cos-set-savedir" style="flex:0 0 auto;padding:6px 10px;">📁 保存先</button>
+          <span id="cos-savedir-status" style="flex:1;font-size:11px;color:#6c7086;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">保存先: ダウンロードフォルダ（既定）</span>
+        </div>
+        <button class="btn btn-gen" id="gen-download" style="flex:0 0 auto;">💾 使用後（高解像度）を保存</button>
+      </div>
+
+      <!-- 中：使用前 / 使用後 -->
+      <div class="imgs">
+        <div class="imgcol">
+          <div class="section-label">使用前（取り置き）</div>
+          <div class="big-img" id="before-box">
+            <div class="big-ph" id="before-ph">左の取り置きを選ぶと<br>ここに表示</div>
+            <img id="before-img" alt="使用前">
+            <div class="big-badge" id="before-badge"></div>
+          </div>
+        </div>
+        <div class="imgcol">
+          <div class="section-label">使用後（高解像度化）</div>
+          <div class="big-img" id="after-box">
+            <div class="big-ph" id="after-ph">「⤴ 高解像度化」で<br>ここに結果</div>
+            <div class="big-spin" id="after-spin"></div>
+            <img id="after-img" alt="使用後">
+            <div class="big-cap" id="after-cap"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：取り置きピッカー -->
+      <div class="picker">
+        <div class="section-label">お取り置き（クリックで選択）</div>
+        <div class="picker-strip" id="reserve-picker"></div>
+      </div>
+
+    </div>
+  </div>
+  <div id="toast"></div>
+  <script src="config.js"></script>
+  <script src="costume_data.js"></script>
+  <script src="finish.js"></script>
+</body>
+</html>

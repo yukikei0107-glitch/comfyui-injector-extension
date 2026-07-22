@@ -359,87 +359,14 @@ function makeBackgroundFromWord() {
 
 // ===== 参考（5枚並べ、◀▶で5枚ずつ送る）=====
 const REF_PAGE = 5;
-let galleryItems = []; // { url, prompt }（通常生成のみ。プレビューは除外）
-let previewList = [];  // { url, prompt } 「この衣装で生成」した過去プレビュー（新しい順）
-let genIndex = 0;      // 右上プレビュー枠で今見ているプレビューの位置
+let galleryItems = []; // { url, prompt }（通常生成のみ。「⭐履歴から」テーマ用）
+// （プレビュー表示・お取り置きは finish.js へ移動）
 
-// 過去プレビューの i 番目（0=最新）を右上の枠に表示
-function showPreviewAt(i) {
-  const img = document.getElementById("gen-img");
-  const ph = document.getElementById("gen-placeholder");
-  const badge = document.getElementById("gen-badge");
-  const cap = document.getElementById("gen-caption");
-  const counter = document.getElementById("gen-counter");
-  if (!previewList.length) { if (counter) counter.textContent = "– / –"; return; }
-  genIndex = Math.max(0, Math.min(i, previewList.length - 1));
-  const it = previewList[genIndex];
-  img.onload = null; img.onerror = null; // 生成時のハンドラを無効化
-  ph.style.display = "none";
-  img.src = it.url; img.style.display = "block";
-  badge.textContent = it.hires ? "🖼 高解像度" : "⚠️ 低解像度プレビュー";
-  badge.style.display = "block";
-  const outfit = extractOutfitBySlot(it.prompt || "");
-  cap.textContent = SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "";
-  if (counter) counter.textContent = `${genIndex + 1} / ${previewList.length}`;
-}
-
-// 任意の画像（お取り置き等）を真ん中の大プレビューに表示する
-function showImageInPreview(url, prompt, hires) {
-  const img = document.getElementById("gen-img");
-  const ph = document.getElementById("gen-placeholder");
-  const badge = document.getElementById("gen-badge");
-  const cap = document.getElementById("gen-caption");
-  img.onload = null; img.onerror = null;
-  ph.style.display = "none";
-  img.src = url; img.style.display = "block";
-  badge.textContent = hires ? "🖼 高解像度" : "⚠️ 低解像度プレビュー";
-  badge.style.display = "block";
-  const outfit = extractOutfitBySlot(prompt || "");
-  cap.textContent = SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "";
-}
-
-
-// ===== ⭐ お取り置き（気に入ったプレビューを小さい帯に常設保存）=====
-let reservedList = []; // { url, prompt }
-function saveReserved() {
-  // 2重に保存（chrome.storage＋localStorage）＝どちらかが飛んでも残る
-  try { chrome.storage.local.set({ costume_reserved: reservedList }); } catch (e) {}
-  try { localStorage.setItem("costume_reserved", JSON.stringify(reservedList)); } catch (e) {}
-}
-function renderReserve() {
-  const strip = document.getElementById("reserve-strip");
-  if (!reservedList.length) { strip.innerHTML = '<span class="reserve-empty">⭐で気に入ったプレビューをここに取り置き</span>'; return; }
-  strip.innerHTML = "";
-  reservedList.forEach((it, idx) => {
-    const cell = document.createElement("div");
-    cell.className = "reserve-cell";
-    const outfit = extractOutfitBySlot(it.prompt || "");
-    cell.title = "クリックで衣装を読込\n\n" + (SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "");
-    const img = document.createElement("img");
-    img.loading = "lazy"; img.src = it.url;
-    const rm = document.createElement("div");
-    rm.className = "rm"; rm.textContent = "×"; rm.title = "取り置きから外す";
-    rm.addEventListener("click", (e) => { e.stopPropagation(); reservedList.splice(idx, 1); saveReserved(); renderReserve(); });
-    cell.append(img, rm);
-    if (!it.hires) { const lr = document.createElement("div"); lr.className = "lowres"; lr.textContent = "⚠ 低解像度"; cell.append(lr); }
-    cell.addEventListener("click", () => { showImageInPreview(it.url, it.prompt, it.hires); applyReserved(it); });
-    strip.appendChild(cell);
-  });
-}
-function reserveCurrent() {
-  const it = previewList[genIndex];
-  if (!it) { toast("取り置きするプレビューがありません", "#f9e2af"); return; }
-  if (reservedList.some(r => r.url === it.url)) { toast("すでに取り置き済みです", "#f9e2af"); return; }
-  reservedList.unshift({ url: it.url, prompt: it.prompt, cos: it.cos, act: it.act, hires: it.hires });
-  saveReserved();
-  renderReserve();
-  toast("⭐ 取り置きしました");
-}
-
+// 履歴を読み「⭐履歴から」テーマ用の galleryItems を作る（プレビュー表示は finish 画面へ移動）
 async function loadGallery() {
   try {
     const history = await bgFetch(`${COMFYUI_BASE}/history`);
-    const items = [], previews = [];
+    const items = [];
     for (const pid of Object.keys(history)) {
       const entry = history[pid];
       const pobj = entry.prompt && entry.prompt[2];
@@ -447,47 +374,18 @@ async function loadGallery() {
       for (const nodeOut of Object.values(entry.outputs || {})) {
         for (const img of (nodeOut.images || [])) {
           if ((img.type || "output") !== "output") continue;
+          if ((img.subfolder || "").startsWith("costume_preview")) continue; // プレビューは対象外
           const url = `${COMFYUI_BASE}/api/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=output`;
-          if ((img.subfolder || "").startsWith("costume_preview")) { previews.push({ url, prompt: ptext }); continue; } // 過去プレビューは別枠へ
           items.push({ url, prompt: ptext });
         }
       }
     }
-    items.reverse(); previews.reverse(); // 新しい順
+    items.reverse(); // 新しい順
     galleryItems = items;
-    previewList = previews;
     buildHistoryTheme();
-    showPreviewAt(0); // 過去プレビューがあれば最新を右上に表示（無ければカウンタのみ）
   } catch (e) {
     console.warn("[衣装] 履歴取得に失敗:", e);
   }
-}
-
-// （参考ギャラリーは廃止）
-
-// お取り置きカードを読み込む（スナップショットがあれば衣装＋動作を正確に復元）
-function applyReserved(it) {
-  if (it && (it.cos || it.act)) {
-    if (it.cos) for (const s of SLOTS) state.slots[s.key].value = it.cos[s.key] || "";
-    if (it.act) for (const s of ASLOTS) astate.slots[s.key].value = it.act[s.key] || "";
-    render(); renderAct();
-    toast("🖼 衣装と動作を読み込みました");
-  } else {
-    applyOutfitFromPrompt(it.prompt); // 旧データ：プロンプトから衣装のみ復元
-  }
-}
-
-// 過去画像の衣装をスロットに読み込む（ロック中のスロットは維持）
-function applyOutfitFromPrompt(promptText) {
-  const outfit = extractOutfitBySlot(promptText);
-  let any = false;
-  for (const s of SLOTS) {
-    if (state.slots[s.key].locked) continue;
-    state.slots[s.key].value = outfit[s.key] || "";
-    if (outfit[s.key]) any = true;
-  }
-  render();
-  toast(any ? "🖼 この画像の衣装を読み込みました" : "衣装タグを検出できませんでした", any ? "#a6e3a1" : "#f9e2af");
 }
 
 // 履歴から個人用テーマを組み立てる（各スロット＝過去に使った衣装タグの集合）
@@ -527,171 +425,129 @@ function extractPositive(promptObj) {
   return "";
 }
 
-// ===== この衣装でプレビュー生成（コントロール画面のプロンプトは汚さない）=====
-let previewBusy = false;
-async function generatePreview(outfit, srcBtn, opts) {
-  opts = opts || {};
-  const hires = !!opts.hires; // true=縮小/ステップ削減なし（元解像度で高画質）
-  if (!outfit) { toast("空です。🎲を押してください", "#f9e2af"); return; }
-  if (previewBusy) return;
-  previewBusy = true;
-  const genBtns = [document.getElementById("btn-gen"), document.getElementById("btn-gen-costume")];
-  const spinner = document.getElementById("gen-spinner");
-  const placeholder = document.getElementById("gen-placeholder");
-  const imgEl = document.getElementById("gen-img");
-  const caption = document.getElementById("gen-caption");
+// ===== 生成プレビュー（この画面で生成し、右の大枠に表示。仕上げはI2I専用画面へ）=====
+let previewList = []; // { url, prompt, cos, act, hires }
+let genIndex = 0;
+function showPreviewAt(i) {
+  const img = document.getElementById("gen-img");
+  const ph = document.getElementById("gen-placeholder");
   const badge = document.getElementById("gen-badge");
-  genBtns.forEach(b => { if (b) b.disabled = true; });
-  if (srcBtn) srcBtn.textContent = "生成中...";
-  imgEl.style.display = "none"; imgEl.removeAttribute("src"); badge.style.display = "none"; caption.textContent = "";
-  spinner.style.display = "none"; // 状況は中央テキストで常に見えるように出す
-  const setStage = (m) => { placeholder.textContent = m; placeholder.style.display = "block"; };
-  const showGenError = (m) => { setStage("⚠️ " + m); toast(m, "#f38ba8"); };
-  setStage("⏳ 準備中…");
-  const t0 = performance.now();
-  try {
-    // 直近の生成ワークフローを土台にする（本体の設定・モデルをそのまま利用）
-    const history = await bgFetch(`${COMFYUI_BASE}/history`);
-    const keys = Object.keys(history);
-    if (!keys.length) { showGenError("土台にする履歴がありません。まず本体で1枚生成してください"); return; }
-    // プレビュー自身(costume_preview/)を土台にすると小さい解像度のまま→真っ黒になるので、
-    // 直近の「通常生成」を土台にする（プレビュー履歴はスキップ）
-    let baseKey = null;
-    for (let i = keys.length - 1; i >= 0; i--) {
-      const entry = history[keys[i]];
-      if (!entry || !entry.prompt || !entry.prompt[2]) continue;
-      let isPreview = false;
-      for (const out of Object.values(entry.outputs || {})) {
-        for (const img of (out.images || [])) {
-          if ((img.subfolder || "").startsWith("costume_preview")) isPreview = true;
-        }
-      }
-      if (!isPreview) { baseKey = keys[i]; break; }
-    }
-    if (!baseKey) { showGenError("土台にする通常生成が見つかりません。本体で普通に1枚生成してから試してください"); return; }
-    const workflow = JSON.parse(JSON.stringify(history[baseKey].prompt[2]));
-    // 土台の解像度を確認用に取得（真っ黒対策：小さすぎないか一目で分かる）
-    let baseSize = "";
-    for (const node of Object.values(workflow)) {
-      const t = (node.class_type || "").toLowerCase();
-      if (t.includes("latent") && node.inputs && typeof node.inputs.width === "number") { baseSize = `${node.inputs.width}x${node.inputs.height}`; break; }
-    }
-    setStage("⏳ 準備中… 土台 " + (baseSize || "?"));
-
-    // プレビュー用プロンプト（全身が見えるよう指定）＋ 衣装
-    const base = (document.getElementById("gen-prompt").value || "").trim() || DEFAULT_GEN_PROMPT;
-    const prompt = base + ", " + outfit;
-    const setText = (node) => { if (!node.inputs) return; if ("value" in node.inputs) node.inputs.value = prompt; else node.inputs.text = prompt; };
-    const isText = (t) => t === "cliptextencode" || t === "primitivestringmultiline";
-    let replaced = false;
-    // ① タイトルに positive/ポジティブ を含むテキストノード
-    for (const node of Object.values(workflow)) {
-      const title = (node._meta && node._meta.title || "").toLowerCase();
-      const type = (node.class_type || "").toLowerCase();
-      if (isText(type) && ["positive", "ポジティブ"].some(k => title.includes(k))) { setText(node); replaced = true; break; }
-    }
-    // ② 見つからなければ、negative以外の最初のテキストノード
-    if (!replaced) {
-      for (const node of Object.values(workflow)) {
-        const title = (node._meta && node._meta.title || "").toLowerCase();
-        const type = (node.class_type || "").toLowerCase();
-        if (isText(type) && !["negative", "ネガティブ", "neg"].some(k => title.includes(k))) { setText(node); replaced = true; break; }
-      }
-    }
-    if (!replaced) { showGenError("プロンプトを差し替えるテキストノードが見つかりません。土台にした生成のワークフローが非対応かもしれません"); return; }
-    // 軽いプレビュー：土台が大きいときだけ解像度を半分に（/64スナップでモデル安全）＋stepsを最大8＋seedランダム化。
-    let info = "", genSize = "";
-    for (const node of Object.values(workflow)) {
-      const type = (node.class_type || "").toLowerCase();
-      if (type.includes("latent") && node.inputs && typeof node.inputs.width === "number" && typeof node.inputs.height === "number") {
-        if (!hires && Math.max(node.inputs.width, node.inputs.height) >= 1024) { // 高解像度でなく十分大きいときだけ縮小（小さすぎ→真っ黒を回避）
-          node.inputs.width = Math.max(384, Math.round(node.inputs.width * 0.5 / 64) * 64);
-          node.inputs.height = Math.max(384, Math.round(node.inputs.height * 0.5 / 64) * 64);
-        }
-        genSize = `${node.inputs.width}x${node.inputs.height}`;
-      }
-      if (type === "ksampler" && node.inputs) {
-        if ("seed" in node.inputs) node.inputs.seed = Math.floor(Math.random() * 2 ** 32);
-        if (typeof node.inputs.steps === "number") {
-          if (!hires) node.inputs.steps = Math.min(node.inputs.steps, 8);
-          info = `${node.inputs.steps}steps`;
-        }
-      } else if (type === "ksampleradvanced" && node.inputs) {
-        if ("noise_seed" in node.inputs) node.inputs.noise_seed = Math.floor(Math.random() * 2 ** 32);
-        else if ("seed" in node.inputs) node.inputs.seed = Math.floor(Math.random() * 2 ** 32);
-        if (typeof node.inputs.steps === "number") {
-          if (!hires) { // 高解像度でなければ軽くする（本番並みに重くならないよう）
-            const orig = node.inputs.steps;
-            node.inputs.steps = Math.min(orig, 8);
-            if (typeof node.inputs.end_at_step === "number" && node.inputs.end_at_step >= orig) node.inputs.end_at_step = node.inputs.steps; // 最後まで指定なら縮小stepsに合わせる
-            if (typeof node.inputs.start_at_step === "number" && node.inputs.start_at_step > node.inputs.steps) node.inputs.start_at_step = 0;
-          }
-          info = `${node.inputs.steps}steps`;
-        }
-      }
-      // プレビューは専用サブフォルダに保存（通常の出力を汚さない）
-      if (node.class_type === "SaveImage" && node.inputs) {
-        node.inputs.filename_prefix = "costume_preview/preview";
-      }
-    }
-
-    const q = await bgFetch(`${COMFYUI_BASE}/prompt`, "POST", { prompt: workflow, client_id: "costume_ext" });
-    if (q && q.node_errors && Object.keys(q.node_errors).length) {
-      showGenError("ワークフローのエラー: " + JSON.stringify(q.node_errors).slice(0, 180)); return;
-    }
-    const pid = q && q.prompt_id;
-    if (!pid) { showGenError("キュー送信に失敗（prompt_idが返らない）"); return; }
-
-    // 結果をポーリング（output/temp どちらの画像も拾う。ComfyUI側エラーも検出）
-    const deadline = performance.now() + (hires ? 420000 : 180000); // 高解像度は時間がかかるので長め
-    let url = null, execErr = null;
-    while (performance.now() < deadline && !url && !execErr) {
-      await new Promise(r => setTimeout(r, 400));
-      setStage(`⏳ 生成中… ${((performance.now() - t0) / 1000).toFixed(0)}s ／ 土台 ${baseSize || "?"}`);
-      const data = await bgFetch(`${COMFYUI_BASE}/history/${pid}`);
-      const entry = data && data[pid];
-      if (!entry) continue;
-      if (entry.status && entry.status.status_str === "error") { execErr = "ComfyUI側で生成エラー（ワークフローを確認）"; break; }
-      for (const out of Object.values(entry.outputs || {})) {
-        for (const img of (out.images || [])) {
-          const type = img.type || "output";
-          url = `${COMFYUI_BASE}/api/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=${type}`;
-          break;
-        }
-        if (url) break;
-      }
-    }
-    if (execErr) { showGenError(execErr); return; }
-    if (!url) { showGenError("タイムアウト（画像が見つからない）。SaveImageノードのあるワークフローで一度本体生成してください"); return; }
-    // 画像は onload で「読み込めた」ことを確認してから表示（黙って消えるのを防ぐ）
-    setStage("⏳ 画像を読み込み中…");
-    imgEl.onload = () => {
-      placeholder.style.display = "none";
-      imgEl.style.display = "block";
-      badge.textContent = hires ? "🖼 高解像度" : "⚠️ 低解像度プレビュー";
-      badge.style.display = "block";
-      caption.textContent = `${genSize ? genSize + " / " : ""}${info ? info + " / " : ""}${((performance.now() - t0) / 1000).toFixed(1)}s`;
-      previewList.unshift({ url, prompt, cos: snapSlots(state, SLOTS), act: snapSlots(astate, ASLOTS), hires }); // 最新プレビュー（衣装/動作スナップショット付き）
-      genIndex = 0;
-      const c = document.getElementById("gen-counter"); if (c) c.textContent = `1 / ${previewList.length}`;
-    };
-    imgEl.onerror = () => showGenError("画像の読み込みに失敗: " + url);
-    imgEl.src = url;
-  } catch (e) {
-    showGenError("生成に失敗: " + (e.message || e));
-  } finally {
-    genBtns.forEach(b => { if (b) b.disabled = false; });
-    const bg = document.getElementById("btn-gen"); if (bg) bg.textContent = "▶ 衣装＋動作の生成";
-    const bc = document.getElementById("btn-gen-costume"); if (bc) bc.textContent = "▶ 衣装のみ生成";
-    previewBusy = false;
-  }
+  const cap = document.getElementById("gen-caption");
+  const counter = document.getElementById("gen-counter");
+  if (!previewList.length) { if (counter) counter.textContent = "– / –"; return; }
+  genIndex = Math.max(0, Math.min(i, previewList.length - 1));
+  const it = previewList[genIndex];
+  img.onload = null; img.onerror = null;
+  ph.style.display = "none";
+  img.src = it.url; img.style.display = "block";
+  badge.textContent = it.hires ? "🖼 高解像度" : "⚠️ 低解像度プレビュー";
+  badge.style.display = "block";
+  const outfit = extractOutfitBySlot(it.prompt || "");
+  cap.textContent = SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "";
+  if (counter) counter.textContent = `${genIndex + 1} / ${previewList.length}`;
+}
+function showImageInPreview(url, prompt, hires) {
+  const img = document.getElementById("gen-img");
+  const ph = document.getElementById("gen-placeholder");
+  const badge = document.getElementById("gen-badge");
+  const cap = document.getElementById("gen-caption");
+  img.onload = null; img.onerror = null;
+  ph.style.display = "none";
+  img.src = url; img.style.display = "block";
+  badge.textContent = hires ? "🖼 高解像度" : "⚠️ 低解像度プレビュー";
+  badge.style.display = "block";
+  const outfit = extractOutfitBySlot(prompt || "");
+  cap.textContent = SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "";
 }
 
-// ===== 画像の保存先フォルダ（control画面と同じ IndexedDB を使い、保存先を共有） =====
+// ===== ⭐ お取り置き（一列）=====
+let reservedList = []; // { url, prompt, cos, act, hires }
+function saveReserved() {
+  try { chrome.storage.local.set({ costume_reserved: reservedList }); } catch (e) {}
+  try { localStorage.setItem("costume_reserved", JSON.stringify(reservedList)); } catch (e) {}
+}
+function renderReserve() {
+  const strip = document.getElementById("reserve-strip");
+  if (!strip) return;
+  if (!reservedList.length) { strip.innerHTML = '<span class="reserve-empty">⭐で気に入ったプレビューをここに取り置き</span>'; return; }
+  strip.innerHTML = "";
+  reservedList.forEach((it, idx) => {
+    const cell = document.createElement("div");
+    cell.className = "reserve-cell";
+    const outfit = extractOutfitBySlot(it.prompt || "");
+    cell.title = "クリックで大きく表示＋この衣装をガチャに読込\n\n" + (SLOTS.map(s => outfit[s.key]).filter(Boolean).join(", ") || "");
+    const img = document.createElement("img");
+    img.loading = "lazy"; img.src = it.url;
+    const rm = document.createElement("div");
+    rm.className = "rm"; rm.textContent = "×"; rm.title = "取り置きから外す";
+    rm.addEventListener("click", (e) => { e.stopPropagation(); reservedList.splice(idx, 1); saveReserved(); renderReserve(); });
+    cell.append(img, rm);
+    if (!it.hires) { const lr = document.createElement("div"); lr.className = "lowres"; lr.textContent = "⚠低解像度"; cell.append(lr); }
+    cell.addEventListener("click", () => { showImageInPreview(it.url, it.prompt, it.hires); applyReserved(it); });
+    strip.appendChild(cell);
+  });
+}
+function reserveCurrent() {
+  const it = previewList[genIndex];
+  if (!it) { toast("取り置きするプレビューがありません", "#f9e2af"); return; }
+  if (reservedList.some(r => r.url === it.url)) { toast("すでに取り置き済みです", "#f9e2af"); return; }
+  reservedList.unshift({ url: it.url, prompt: it.prompt, cos: it.cos, act: it.act, hires: it.hires });
+  saveReserved();
+  renderReserve();
+  toast("⭐ 取り置きしました");
+}
+// お取り置きカードを読み込む（衣装＋動作をガチャに復元）
+function applyReserved(it) {
+  if (it && (it.cos || it.act)) {
+    if (it.cos) for (const s of SLOTS) state.slots[s.key].value = it.cos[s.key] || "";
+    if (it.act) for (const s of ASLOTS) astate.slots[s.key].value = it.act[s.key] || "";
+    render(); renderAct();
+    toast("🖼 衣装と動作を読み込みました");
+  } else {
+    applyOutfitFromPrompt(it.prompt);
+  }
+}
+function applyOutfitFromPrompt(promptText) {
+  const outfit = extractOutfitBySlot(promptText);
+  let any = false;
+  for (const s of SLOTS) {
+    if (state.slots[s.key].locked) continue;
+    state.slots[s.key].value = outfit[s.key] || "";
+    if (outfit[s.key]) any = true;
+  }
+  render();
+  toast(any ? "🖼 この画像の衣装を読み込みました" : "衣装タグを検出できませんでした", any ? "#a6e3a1" : "#f9e2af");
+}
+// 過去プレビュー(costume_preview/)を読み込んで ◀▶ で見返す
+async function loadGalleryPreviews() {
+  try {
+    const history = await bgFetch(`${COMFYUI_BASE}/history`);
+    const previews = [];
+    for (const pid of Object.keys(history)) {
+      const entry = history[pid];
+      const pobj = entry.prompt && entry.prompt[2];
+      const ptext = pobj ? extractPositive(pobj) : "";
+      for (const nodeOut of Object.values(entry.outputs || {})) {
+        for (const img of (nodeOut.images || [])) {
+          if ((img.type || "output") !== "output") continue;
+          if (!(img.subfolder || "").startsWith("costume_preview")) continue;
+          const hires = (img.subfolder || "").includes("upscaled");
+          const url = `${COMFYUI_BASE}/api/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=output`;
+          previews.push({ url, prompt: ptext, hires });
+        }
+      }
+    }
+    previews.reverse();
+    previewList = previews;
+    showPreviewAt(0);
+  } catch (e) { console.warn("[衣装] プレビュー履歴取得に失敗:", e); }
+}
+
+// ===== 画像の保存先フォルダ（control画面と同じ IndexedDB を共有）=====
 let saveDirHandle = null;
 function dlIdb() {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open("control_dl_db", 1); // control.js と同じDB＝保存先を共有
+    const req = indexedDB.open("control_dl_db", 1);
     req.onupgradeneeded = () => req.result.createObjectStore("kv");
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -715,8 +571,6 @@ async function ensureDirPermission() {
   if (p !== "granted") p = await saveDirHandle.requestPermission({ mode: "readwrite" });
   return p === "granted";
 }
-
-// 表示中のプレビュー画像を保存（保存先フォルダがあればそこへ、無ければブラウザDL。HTTP fetch→blob、SMB不要）
 async function downloadCurrentPreview() {
   const img = document.getElementById("gen-img");
   const src = img && img.getAttribute("src");
@@ -739,21 +593,131 @@ async function downloadCurrentPreview() {
       URL.revokeObjectURL(a.href);
       toast("💾 ダウンロードしました: " + name);
     }
-  } catch (e) {
-    toast("ダウンロード失敗: " + (e.message || e), "#f38ba8");
-  } finally { btn.disabled = false; }
+  } catch (e) { toast("ダウンロード失敗: " + (e.message || e), "#f38ba8"); }
+  finally { btn.disabled = false; }
 }
-// 起動時：保存先フォルダを復元（controlで設定済みならそれを共有）
-(async () => {
+
+// ===== 生成本体（低解像度/高解像度） =====
+let previewBusy = false;
+async function generatePreview(outfit, srcBtn, opts) {
+  opts = opts || {};
+  const hires = !!opts.hires;
+  if (!outfit) { toast("空です。🎲を押してください", "#f9e2af"); return; }
+  if (previewBusy) return;
+  previewBusy = true;
+  const genBtns = [document.getElementById("btn-gen"), document.getElementById("btn-gen-costume")];
+  const placeholder = document.getElementById("gen-placeholder");
+  const imgEl = document.getElementById("gen-img");
+  const caption = document.getElementById("gen-caption");
+  const badge = document.getElementById("gen-badge");
+  genBtns.forEach(b => { if (b) b.disabled = true; });
+  if (srcBtn) srcBtn.textContent = "生成中...";
+  imgEl.style.display = "none"; imgEl.removeAttribute("src"); badge.style.display = "none"; caption.textContent = "";
+  const setStage = (m) => { placeholder.textContent = m; placeholder.style.display = "block"; };
+  const showGenError = (m) => { setStage("⚠️ " + m); toast(m, "#f38ba8"); };
+  setStage("⏳ 準備中…");
+  const t0 = performance.now();
   try {
-    const h = await dlIdbGet("saveDir");
-    if (h) {
-      saveDirHandle = h;
-      const p = await h.queryPermission({ mode: "readwrite" });
-      setSaveDirStatus(p === "granted" ? `保存先: ${h.name}` : `保存先: ${h.name}（保存時に許可を確認）`, p === "granted" ? "#a6e3a1" : "#f9e2af");
+    const history = await bgFetch(`${COMFYUI_BASE}/history`);
+    const keys = Object.keys(history);
+    if (!keys.length) { showGenError("土台にする履歴がありません。まず本体で1枚生成してください"); return; }
+    let baseKey = null;
+    for (let i = keys.length - 1; i >= 0; i--) {
+      const entry = history[keys[i]];
+      if (!entry || !entry.prompt || !entry.prompt[2]) continue;
+      let isPreview = false;
+      for (const out of Object.values(entry.outputs || {})) for (const img of (out.images || [])) if ((img.subfolder || "").startsWith("costume_preview")) isPreview = true;
+      if (!isPreview) { baseKey = keys[i]; break; }
     }
-  } catch (e) {}
-})();
+    if (!baseKey) { showGenError("土台にする通常生成が見つかりません。本体で普通に1枚生成してから試してください"); return; }
+    const workflow = JSON.parse(JSON.stringify(history[baseKey].prompt[2]));
+    let baseSize = "";
+    for (const node of Object.values(workflow)) {
+      const t = (node.class_type || "").toLowerCase();
+      if (t.includes("latent") && node.inputs && typeof node.inputs.width === "number") { baseSize = `${node.inputs.width}x${node.inputs.height}`; break; }
+    }
+    setStage("⏳ 準備中… 土台 " + (baseSize || "?"));
+    const base = (document.getElementById("gen-prompt").value || "").trim() || DEFAULT_GEN_PROMPT;
+    const prompt = base + ", " + outfit;
+    const setText = (node) => { if (!node.inputs) return; if ("value" in node.inputs) node.inputs.value = prompt; else node.inputs.text = prompt; };
+    const isText = (t) => t === "cliptextencode" || t === "primitivestringmultiline";
+    let replaced = false;
+    for (const node of Object.values(workflow)) {
+      const title = (node._meta && node._meta.title || "").toLowerCase();
+      if (isText((node.class_type || "").toLowerCase()) && ["positive", "ポジティブ"].some(k => title.includes(k))) { setText(node); replaced = true; break; }
+    }
+    if (!replaced) for (const node of Object.values(workflow)) {
+      const title = (node._meta && node._meta.title || "").toLowerCase();
+      if (isText((node.class_type || "").toLowerCase()) && !["negative", "ネガティブ", "neg"].some(k => title.includes(k))) { setText(node); replaced = true; break; }
+    }
+    if (!replaced) { showGenError("プロンプトを差し替えるテキストノードが見つかりません"); return; }
+    let info = "", genSize = "";
+    for (const node of Object.values(workflow)) {
+      const type = (node.class_type || "").toLowerCase();
+      if (type.includes("latent") && node.inputs && typeof node.inputs.width === "number" && typeof node.inputs.height === "number") {
+        if (!hires && Math.max(node.inputs.width, node.inputs.height) >= 1024) {
+          node.inputs.width = Math.max(384, Math.round(node.inputs.width * 0.5 / 8) * 8);
+          node.inputs.height = Math.max(384, Math.round(node.inputs.height * 0.5 / 8) * 8);
+        }
+        genSize = `${node.inputs.width}x${node.inputs.height}`;
+      }
+      if (type === "ksampler" && node.inputs) {
+        if ("seed" in node.inputs) node.inputs.seed = Math.floor(Math.random() * 2 ** 32);
+        if (typeof node.inputs.steps === "number") { if (!hires) node.inputs.steps = Math.min(node.inputs.steps, 8); info = `${node.inputs.steps}steps`; }
+      } else if (type === "ksampleradvanced" && node.inputs) {
+        if ("noise_seed" in node.inputs) node.inputs.noise_seed = Math.floor(Math.random() * 2 ** 32);
+        else if ("seed" in node.inputs) node.inputs.seed = Math.floor(Math.random() * 2 ** 32);
+        if (typeof node.inputs.steps === "number") {
+          if (!hires) {
+            const orig = node.inputs.steps;
+            node.inputs.steps = Math.min(orig, 8);
+            if (typeof node.inputs.end_at_step === "number" && node.inputs.end_at_step >= orig) node.inputs.end_at_step = node.inputs.steps;
+            if (typeof node.inputs.start_at_step === "number" && node.inputs.start_at_step > node.inputs.steps) node.inputs.start_at_step = 0;
+          }
+          info = `${node.inputs.steps}steps`;
+        }
+      }
+      if (node.class_type === "SaveImage" && node.inputs) node.inputs.filename_prefix = "costume_preview/preview";
+    }
+    const q = await bgFetch(`${COMFYUI_BASE}/prompt`, "POST", { prompt: workflow, client_id: "costume_ext" });
+    if (q && q.node_errors && Object.keys(q.node_errors).length) { showGenError("ワークフローのエラー: " + JSON.stringify(q.node_errors).slice(0, 180)); return; }
+    const pid = q && q.prompt_id;
+    if (!pid) { showGenError("キュー送信に失敗（prompt_idが返らない）"); return; }
+    const deadline = performance.now() + (hires ? 420000 : 180000);
+    let url = null, execErr = null;
+    while (performance.now() < deadline && !url && !execErr) {
+      await new Promise(r => setTimeout(r, 400));
+      setStage(`⏳ 生成中… ${((performance.now() - t0) / 1000).toFixed(0)}s ／ 土台 ${baseSize || "?"}`);
+      const data = await bgFetch(`${COMFYUI_BASE}/history/${pid}`);
+      const entry = data && data[pid];
+      if (!entry) continue;
+      if (entry.status && entry.status.status_str === "error") { execErr = "ComfyUI側で生成エラー（ワークフローを確認）"; break; }
+      for (const out of Object.values(entry.outputs || {})) { for (const img of (out.images || [])) { const type = img.type || "output"; url = `${COMFYUI_BASE}/api/view?filename=${encodeURIComponent(img.filename)}&subfolder=${encodeURIComponent(img.subfolder || "")}&type=${type}`; break; } if (url) break; }
+    }
+    if (execErr) { showGenError(execErr); return; }
+    if (!url) { showGenError("タイムアウト（画像が見つからない）"); return; }
+    setStage("⏳ 画像を読み込み中…");
+    imgEl.onload = () => {
+      placeholder.style.display = "none";
+      imgEl.style.display = "block";
+      badge.textContent = hires ? "🖼 高解像度" : "⚠️ 低解像度プレビュー";
+      badge.style.display = "block";
+      caption.textContent = `${genSize ? genSize + " / " : ""}${info ? info + " / " : ""}${((performance.now() - t0) / 1000).toFixed(1)}s`;
+      previewList.unshift({ url, prompt, cos: snapSlots(state, SLOTS), act: snapSlots(astate, ASLOTS), hires });
+      genIndex = 0;
+      const c = document.getElementById("gen-counter"); if (c) c.textContent = `1 / ${previewList.length}`;
+    };
+    imgEl.onerror = () => showGenError("画像の読み込みに失敗: " + url);
+    imgEl.src = url;
+  } catch (e) {
+    showGenError("生成に失敗: " + (e.message || e));
+  } finally {
+    genBtns.forEach(b => { if (b) b.disabled = false; });
+    const bg = document.getElementById("btn-gen"); if (bg) bg.textContent = "▶ 衣装＋動作で生成";
+    const bc = document.getElementById("btn-gen-costume"); if (bc) bc.textContent = "▶ 衣装のみ生成";
+    previewBusy = false;
+  }
+}
 
 // ===== イベント =====
 const genHiresChk = document.getElementById("gen-hires");
@@ -761,29 +725,9 @@ document.getElementById("btn-gen").addEventListener("click", (e) => generatePrev
 document.getElementById("btn-gen-costume").addEventListener("click", (e) => generatePreview(buildString(), e.currentTarget, { hires: genHiresChk.checked }));
 document.getElementById("gen-download").addEventListener("click", downloadCurrentPreview);
 document.getElementById("cos-set-savedir").addEventListener("click", chooseSaveDir);
-document.getElementById("btn-roll").addEventListener("click", rollAll);
-document.getElementById("btn-ai").addEventListener("click", aiPropose);
-document.getElementById("btn-act-ai").addEventListener("click", aiProposeAction);
-document.getElementById("act-free").addEventListener("input", (e) => {
-  astate.free = e.target.value;
-  updateActPreview();
-  try { chrome.storage.local.set({ costume_action_state: astate }); } catch (err) {}
-});
-document.getElementById("btn-bg-make").addEventListener("click", makeBackgroundFromWord);
-document.getElementById("act-bg-word").addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); makeBackgroundFromWord(); }
-});
-document.getElementById("btn-act-send").addEventListener("click", () => {
-  const str = buildCombined();
-  if (!str) { toast("衣装も動作も空です。🎲を押してください", "#f9e2af"); return; }
-  chrome.runtime.sendMessage({ type: "USE_IN_CONTROL", japanese: str }, () => toast("✍️ 衣装＋動作を翻訳欄に送りました"));
-});
-// 右上プレビュー枠：過去プレビューを◀（古い）▶（新しい）で見返す
-// ◀戻る(古い) ▶進む(新しい) で過去プレビューを行き来
 document.getElementById("gen-prev").addEventListener("click", () => { if (genIndex < previewList.length - 1) showPreviewAt(genIndex + 1); });
 document.getElementById("gen-next").addEventListener("click", () => { if (genIndex > 0) showPreviewAt(genIndex - 1); });
 document.getElementById("btn-reserve").addEventListener("click", reserveCurrent);
-// 💾 お取り置きをJSONで書き出し（システムが飛んでも復元できるバックアップ）
 document.getElementById("btn-reserve-export").addEventListener("click", () => {
   if (!reservedList.length) { toast("お取り置きが空です", "#f9e2af"); return; }
   const blob = new Blob([JSON.stringify(reservedList, null, 2)], { type: "application/json" });
@@ -793,7 +737,6 @@ document.getElementById("btn-reserve-export").addEventListener("click", () => {
   URL.revokeObjectURL(url);
   toast(`💾 ${reservedList.length}件を書き出しました`);
 });
-// ♻️ バックアップから復元（既存とマージ・url重複は除外）
 document.getElementById("btn-reserve-import").addEventListener("click", () => {
   const input = document.createElement("input");
   input.type = "file"; input.accept = ".json";
@@ -812,9 +755,28 @@ document.getElementById("btn-reserve-import").addEventListener("click", () => {
   input.click();
 });
 
-
+// ===== イベント =====
+document.getElementById("btn-roll").addEventListener("click", rollAll);
+document.getElementById("btn-ai").addEventListener("click", aiPropose);
 document.getElementById("btn-act-roll").addEventListener("click", rollActAll);
-
+document.getElementById("btn-act-ai").addEventListener("click", aiProposeAction);
+document.getElementById("act-free").addEventListener("input", (e) => {
+  astate.free = e.target.value;
+  updateActPreview();
+  try { chrome.storage.local.set({ costume_action_state: astate }); } catch (err) {}
+});
+document.getElementById("btn-bg-make").addEventListener("click", makeBackgroundFromWord);
+document.getElementById("act-bg-word").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.isComposing) { e.preventDefault(); makeBackgroundFromWord(); }
+});
+document.getElementById("btn-act-send").addEventListener("click", () => {
+  const str = buildCombined();
+  if (!str) { toast("衣装も動作も空です。🎲を押してください", "#f9e2af"); return; }
+  chrome.runtime.sendMessage({ type: "USE_IN_CONTROL", japanese: str }, () => toast("✍️ 衣装＋動作を翻訳欄に送りました"));
+});
+document.getElementById("open-finish").addEventListener("click", () => {
+  chrome.runtime.sendMessage({ type: "OPEN_PAGE", page: "finish.html" });
+});
 document.getElementById("btn-copy").addEventListener("click", async () => {
   const str = buildString(); if (!str) return;
   const b = document.getElementById("btn-copy");
@@ -822,7 +784,6 @@ document.getElementById("btn-copy").addEventListener("click", async () => {
   catch (e) { b.textContent = "❌ 失敗"; }
   setTimeout(() => b.textContent = "📋 コピー", 1200);
 });
-
 document.getElementById("btn-send").addEventListener("click", () => {
   const str = buildString();
   if (!str) { toast("衣装が空です。🎲を押してください", "#f9e2af"); return; }
@@ -851,24 +812,6 @@ document.getElementById("btn-send").addEventListener("click", () => {
     }
     const fEl = document.getElementById("act-free"); if (fEl) fEl.value = astate.free || "";
   });
-  // プレビュー用プロンプト欄：保存値 or 既定値をセットし、変更を保存
-  const gp = document.getElementById("gen-prompt");
-  chrome.storage.local.get("costume_gen_prompt", (d) => {
-    gp.value = (d && d.costume_gen_prompt) || DEFAULT_GEN_PROMPT;
-  });
-  gp.addEventListener("change", () => {
-    chrome.storage.local.set({ costume_gen_prompt: gp.value.trim() });
-  });
-  // お取り置きを復元（chrome.storageが空ならlocalStorageから）
-  chrome.storage.local.get("costume_reserved", (d) => {
-    let list = (d && Array.isArray(d.costume_reserved)) ? d.costume_reserved : null;
-    if (!list || !list.length) {
-      try { const ls = JSON.parse(localStorage.getItem("costume_reserved") || "[]"); if (ls.length) list = ls; } catch (e) {}
-    }
-    reservedList = list || [];
-    if (reservedList.length) saveReserved(); // 両方に揃えておく
-    renderReserve();
-  });
   // 保存状態を復元（無ければ初期ガチャ）
   chrome.storage.local.get("costume_state_full", (d) => {
     const saved = d && d.costume_state_full;
@@ -882,6 +825,29 @@ document.getElementById("btn-send").addEventListener("click", () => {
       rollAll();
     }
   });
-  // 接続先が確定してから履歴ギャラリーを読む
-  comfyBaseReady.then(loadGallery);
+  // プレビュー用プロンプト欄
+  const gp = document.getElementById("gen-prompt");
+  chrome.storage.local.get("costume_gen_prompt", (d) => { gp.value = (d && d.costume_gen_prompt) || DEFAULT_GEN_PROMPT; });
+  gp.addEventListener("change", () => { chrome.storage.local.set({ costume_gen_prompt: gp.value.trim() }); });
+  // お取り置きを復元
+  chrome.storage.local.get("costume_reserved", (d) => {
+    let list = (d && Array.isArray(d.costume_reserved)) ? d.costume_reserved : null;
+    if (!list || !list.length) { try { const ls = JSON.parse(localStorage.getItem("costume_reserved") || "[]"); if (ls.length) list = ls; } catch (e) {} }
+    reservedList = list || [];
+    if (reservedList.length) saveReserved();
+    renderReserve();
+  });
+  // 保存先フォルダを復元（control/仕上げ画面と共有）
+  (async () => {
+    try {
+      const h = await dlIdbGet("saveDir");
+      if (h) {
+        saveDirHandle = h;
+        const p = await h.queryPermission({ mode: "readwrite" });
+        setSaveDirStatus(p === "granted" ? `保存先: ${h.name}` : `保存先: ${h.name}（保存時に許可を確認）`, p === "granted" ? "#a6e3a1" : "#f9e2af");
+      }
+    } catch (e) {}
+  })();
+  // 接続先が確定してから履歴（テーマ用＋過去プレビュー）を読む
+  comfyBaseReady.then(() => { loadGallery(); loadGalleryPreviews(); });
 })();
