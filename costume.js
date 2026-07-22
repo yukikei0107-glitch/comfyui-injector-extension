@@ -777,21 +777,6 @@ document.getElementById("btn-act-send").addEventListener("click", () => {
 document.getElementById("open-finish").addEventListener("click", () => {
   chrome.runtime.sendMessage({ type: "OPEN_PAGE", page: "finish.html" });
 });
-document.getElementById("btn-copy").addEventListener("click", async () => {
-  const str = buildString(); if (!str) return;
-  const b = document.getElementById("btn-copy");
-  try { await navigator.clipboard.writeText(str); b.textContent = "✅ コピー"; }
-  catch (e) { b.textContent = "❌ 失敗"; }
-  setTimeout(() => b.textContent = "📋 コピー", 1200);
-});
-document.getElementById("btn-send").addEventListener("click", () => {
-  const str = buildString();
-  if (!str) { toast("衣装が空です。🎲を押してください", "#f9e2af"); return; }
-  // 翻訳欄（日本語→英語翻訳の入力）にだけ送る。プロンプト欄には入れない（text を送らない）
-  chrome.runtime.sendMessage({ type: "USE_IN_CONTROL", japanese: str }, () => {
-    toast("✍️ 衣装を翻訳欄に送りました");
-  });
-});
 
 // ===== 起動 =====
 (function init() {
