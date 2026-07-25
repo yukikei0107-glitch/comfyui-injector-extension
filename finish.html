@@ -120,7 +120,10 @@
 
       <!-- 右：取り置きピッカー -->
       <div class="picker">
-        <div class="section-label">お取り置き（クリックで選択）</div>
+        <div style="display:flex;align-items:center;gap:6px;flex:0 0 auto;">
+          <span class="section-label" style="flex:1;">お取り置き（クリックで選択）</span>
+          <button class="btn btn-copy" id="import-mobile" style="flex:0 0 auto;padding:5px 8px;font-size:11px;" title="スマホ版で取り置きした画像を取り込む">📥 スマホから</button>
+        </div>
         <div class="picker-strip" id="reserve-picker"></div>
       </div>
 

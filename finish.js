@@ -330,6 +330,29 @@ document.getElementById("open-costume").addEventListener("click", () => { chrome
 document.getElementById("after-prev").addEventListener("click", () => { if (afterIndex < afterList.length - 1) showAfterAt(afterIndex + 1); }); // 古い方へ
 document.getElementById("after-next").addEventListener("click", () => { if (afterIndex > 0) showAfterAt(afterIndex - 1); }); // 新しい方へ
 document.getElementById("refresh-tags").addEventListener("click", () => { loadReserved(() => { renderPicker(); toast("🔄 お取り置きを再読込しました"); }); });
+// スマホ版で取り置きした画像（サーバー共有 /gacha/reserved）を取り込む
+document.getElementById("import-mobile").addEventListener("click", async () => {
+  try {
+    const arr = await bgFetch(`${COMFYUI_BASE}/gacha/reserved`);
+    if (!Array.isArray(arr) || !arr.length) { toast("スマホ側の取り置きが空です（カスタムノード導入＆スマホで取り置き済み？）", "#f9e2af"); return; }
+    const seen = new Set(reservedList.map(r => r.url));
+    const newItems = [];
+    for (const it of arr) {
+      if (!it || !it.url) continue;
+      // スマホ側のURLをPCから見えるComfyUIアドレス基準に正規化（ホスト違い/相対URL対策）
+      const idx = it.url.indexOf("/api/view");
+      if (idx >= 0) it.url = COMFYUI_BASE + it.url.slice(idx);
+      else if (it.url.startsWith("/")) it.url = COMFYUI_BASE + it.url;
+      if (!seen.has(it.url)) { newItems.push(it); seen.add(it.url); }
+    }
+    reservedList.unshift(...newItems); // 取り込んだ分を先頭（新しい方）へ追加
+    const added = newItems.length;
+    try { localStorage.setItem("costume_reserved", JSON.stringify(reservedList)); } catch (e) {}
+    // 保存が完了してから読み直して再描画（リロードと同じ経路＝即反映）
+    try { chrome.storage.local.set({ costume_reserved: reservedList }, () => loadReserved(renderPicker)); } catch (e) { renderPicker(); }
+    toast(added ? `📥 ${added}件を取り込みました（現在 ${reservedList.length}件）` : "新規の取り込みはありませんでした");
+  } catch (e) { toast("取り込み失敗: " + (e.message || e) + "（カスタムノード未導入？）", "#f38ba8"); }
+});
 
 // ===== 外部画像のドラッグ&ドロップ／貼り付け（使用前に読み込んでI2I可能に）=====
 function useExternalImage(fileOrUrl, isUrl) {

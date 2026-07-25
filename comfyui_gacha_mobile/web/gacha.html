@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1e1e2e">
+<title>衣装ガチャ (スマホ)</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: #1e1e2e; color: #cdd6f4; font-family: -apple-system, "Hiragino Sans", system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+  .page { flex: 1; overflow-y: auto; padding: 12px; display: none; -webkit-overflow-scrolling: touch; }
+  .page.active { display: block; }
+  .tabbar { flex: 0 0 auto; display: flex; background: #181825; border-top: 1px solid #313244; }
+  .tabbar button { flex: 1; padding: 12px 4px; background: none; border: none; color: #7f849c; font-size: 12px; font-weight: bold; }
+  .tabbar button.active { color: #89b4fa; }
+  .lbl { font-size: 11px; color: #bac2de; font-weight: bold; margin: 10px 0 5px; }
+  .themes { display: flex; flex-wrap: wrap; gap: 6px; max-height: 118px; overflow-y: auto; }
+  .chip { padding: 7px 12px; border: none; border-radius: 20px; font-size: 12px; font-weight: bold; background: #313244; color: #cdd6f4; }
+  .chip.active { background: #89b4fa; color: #1e1e2e; }
+  .btn { width: 100%; padding: 13px; border: none; border-radius: 9px; font-size: 14px; font-weight: bold; color: #1e1e2e; margin-top: 8px; }
+  .btn.roll { background: #f9e2af; }
+  .btn.gen { background: #a6e3a1; }
+  .btn.sec { background: #45475a; color: #cdd6f4; }
+  .btn:disabled { opacity: .5; }
+  input[type=text] { width: 100%; background: #2a2a3e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px; padding: 11px; font-size: 14px; margin-top: 6px; }
+  .slot { display: flex; align-items: center; gap: 8px; background: #2a2a3e; border: 1px solid #313244; border-radius: 8px; padding: 8px 10px; margin-top: 5px; }
+  .slot .k { flex: 0 0 46px; font-size: 11px; color: #bac2de; font-weight: bold; }
+  .slot .v { flex: 1; font-size: 13px; word-break: break-word; }
+  .slot .v.empty { color: #45475a; }
+  .slot .b { flex: 0 0 auto; padding: 8px 10px; border: none; border-radius: 6px; font-size: 15px; background: #45475a; color: #cdd6f4; }
+  .slot .b.lock.on { background: #f9e2af; }
+  .cur { background: #2a2a3e; border: 1px solid #45475a; border-radius: 8px; padding: 10px; font-size: 13px; color: #a6e3a1; line-height: 1.5; word-break: break-word; margin-top: 6px; }
+  .cur.act { color: #f9e2af; }
+  .genwrap { width: 100%; aspect-ratio: 944/2048; max-height: 62vh; margin: 8px auto 0; position: relative; background: #2a2a3e; border: 1px solid #313244; border-radius: 8px; overflow: hidden; }
+  .genwrap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: none; }
+  .genph { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; color: #cdd6f4; font-size: 13px; padding: 20px; line-height: 1.7; }
+  .badge { position: absolute; right: 6px; top: 6px; padding: 3px 9px; border-radius: 6px; background: rgba(249,226,175,.95); color: #1e1e2e; font-size: 11px; font-weight: bold; display: none; }
+  .nav { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .nav button { flex: 1; padding: 11px; border: none; border-radius: 8px; background: #45475a; color: #cdd6f4; font-size: 15px; font-weight: bold; }
+  .nav span { flex: 0 0 auto; font-size: 12px; color: #a6adc8; min-width: 60px; text-align: center; }
+  label.chk { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #bac2de; margin-top: 8px; }
+  .reserve { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 6px; }
+  .rcell { position: relative; aspect-ratio: 944/2048; border-radius: 6px; overflow: hidden; background: #11111b; border: 1px solid #313244; }
+  .rcell img { width: 100%; height: 100%; object-fit: cover; object-position: center 28%; }
+  .rcell .rm { position: absolute; top: 0; right: 0; background: rgba(0,0,0,.7); color: #f38ba8; font-size: 15px; padding: 2px 7px; }
+  .rempty { grid-column: 1/-1; color: #45475a; font-size: 12px; text-align: center; padding: 10px; }
+  #toast { position: fixed; left: 50%; bottom: 74px; transform: translateX(-50%) translateY(20px); background: #a6e3a1; color: #1e1e2e; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: bold; opacity: 0; transition: .2s; z-index: 99; pointer-events: none; max-width: 90vw; text-align: center; }
+  .tiny { font-size: 11px; color: #6c7086; margin-top: 6px; }
+</style>
+</head>
+<body>
+
+  <!-- 衣装 -->
+  <div class="page active" id="pg-cos">
+    <div class="lbl">テーマ</div>
+    <div class="themes" id="cos-themes"></div>
+    <button class="btn roll" id="cos-rollall">🎲 衣装を全部振る</button>
+    <div class="lbl">パーツ（🎲振り直し / 🔒固定）</div>
+    <div id="cos-slots"></div>
+    <div class="lbl">現在の衣装</div>
+    <div class="cur" id="cos-cur">🎲で衣装を提案</div>
+  </div>
+
+  <!-- 動作 -->
+  <div class="page" id="pg-act">
+    <div class="lbl">テーマ</div>
+    <div class="themes" id="act-themes"></div>
+    <button class="btn roll" id="act-rollall">🎲 動作を全部振る</button>
+    <div class="lbl">動作パーツ（🎲 / 🔒）</div>
+    <div id="act-slots"></div>
+    <div class="lbl">自由入力（動作に追記）</div>
+    <input type="text" id="act-free" placeholder="例: looking back, from behind">
+    <div class="lbl">現在の動作</div>
+    <div class="cur act" id="act-cur">🎲で動作を提案</div>
+  </div>
+
+  <!-- 生成 -->
+  <div class="page" id="pg-gen">
+    <div class="lbl">現在のタグ（衣装＋動作）</div>
+    <div class="cur" id="gen-tags">左右でガチャしてください</div>
+    <input type="text" id="gen-prompt" placeholder="固定プロンプト（衣装の前）">
+    <div class="tiny">📱 スマホ版は軽量化のため低解像度プレビューのみ（高解像度は封印）</div>
+    <button class="btn gen" id="gen-costume">▶ 衣装のみ生成</button>
+    <button class="btn gen" id="gen-both">▶ 衣装＋動作で生成</button>
+    <div class="genwrap" id="genwrap">
+      <div class="genph" id="genph">「▶ 生成」で<br>ここにプレビュー</div>
+      <img id="genimg" alt="">
+      <div class="badge" id="genbadge"></div>
+    </div>
+    <div class="nav">
+      <button id="gen-prev">◀</button>
+      <span id="gen-counter">– / –</span>
+      <button id="gen-next">▶</button>
+    </div>
+    <div class="nav">
+      <button class="btn sec" id="gen-reserve" style="margin:0;">⭐ 取り置き</button>
+      <button class="btn sec" id="gen-dl" style="margin:0;">💾 保存</button>
+    </div>
+    <div class="lbl">お取り置き（タップで衣装読込）</div>
+    <div class="reserve" id="reserve"></div>
+    <div class="tiny" id="status"></div>
+  </div>
+
+  <div class="tabbar">
+    <button data-tab="pg-cos" class="active">👗 衣装</button>
+    <button data-tab="pg-act">🏃 動作</button>
+    <button data-tab="pg-gen">🖼 生成</button>
+  </div>
+  <div id="fs" style="position:fixed;inset:0;background:#000;z-index:200;display:none;align-items:center;justify-content:center;">
+    <img id="fsimg" style="max-width:100%;max-height:100%;object-fit:contain;">
+    <div style="position:absolute;top:10px;right:14px;color:#fff;font-size:24px;">✕</div>
+  </div>
+  <div id="toast"></div>
+
+  <script src="costume_data.js"></script>
+  <script>
+  const $ = s => document.getElementById(s);
+  const BASE = localStorage.getItem("gacha_base") || ""; // 同一オリジン配信なら空でOK
+  async function api(path, method = "GET", body = null) {
+    const res = await fetch(BASE + path, { method, headers: body ? { "Content-Type": "application/json" } : {}, body: body ? JSON.stringify(body) : null });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    return res.json();
+  }
+  function toast(m, ok = true) { const t = $("toast"); t.textContent = m; t.style.background = ok ? "#a6e3a1" : "#f38ba8"; t.style.opacity = 1; t.style.transform = "translateX(-50%) translateY(0)"; clearTimeout(toast._t); toast._t = setTimeout(() => { t.style.opacity = 0; t.style.transform = "translateX(-50%) translateY(20px)"; }, 2200); }
+
+  const SLOTS = window.COSTUME_SLOTS || [], ASLOTS = window.ACTION_SLOTS || [];
+  const THEMES = window.COSTUME_THEMES || {}, ATHEMES = window.ACTION_THEMES || {};
+  const COLORS = window.COSTUME_COLORS || [], ABG = window.ACTION_BACKGROUNDS || [];
+  const rand = a => a[Math.floor(Math.random() * a.length)];
+  const DEFAULT_PROMPT = "masterpiece, best quality, 1girl, solo, 20yo, adult, full body, standing, simple background";
+
+  const state = { theme: "omakase", slots: {} };
+  for (const s of SLOTS) state.slots[s.key] = { value: "", locked: false };
+  const astate = { theme: "omakase", free: "", slots: {} };
+  for (const s of ASLOTS) astate.slots[s.key] = { value: "", locked: false };
+
+  function resolve(themes, st) { const t = themes[st.theme]; if (t && t.random) { const c = Object.keys(themes).filter(k => !themes[k].random && themes[k].slots); return themes[rand(c)]; } return t; }
+  function rollCos(t, key) { if (key === "color") return COLORS.length ? rand(COLORS) : ""; const p = t && t.slots && t.slots[key]; return p && p.length ? rand(p) : ""; }
+  function rollAct(t, key) { if (key === "background") return ABG.length ? rand(ABG) : ""; const p = t && t.slots && t.slots[key]; return p && p.length ? rand(p) : ""; }
+
+  const buildCos = () => SLOTS.map(s => (state.slots[s.key].value || "").trim()).filter(Boolean).join(", ");
+  const buildAct = () => { const s1 = ASLOTS.map(s => (astate.slots[s.key].value || "").trim()).filter(Boolean).join(", "); const f = (astate.free || "").trim(); return [s1, f].filter(Boolean).join(", "); };
+  const buildBoth = () => [buildCos(), buildAct()].filter(Boolean).join(", ");
+  const snap = (st, slots) => { const o = {}; for (const s of slots) o[s.key] = st.slots[s.key].value || ""; return o; };
+  function save() { try { localStorage.setItem("gacha_cos", JSON.stringify(state)); localStorage.setItem("gacha_act", JSON.stringify(astate)); } catch (e) {} }
+
+  function chips(el, themes, st, onPick) { el.innerHTML = ""; for (const k of Object.keys(themes)) { const b = document.createElement("button"); b.className = "chip" + (k === st.theme ? " active" : ""); b.textContent = themes[k].label; b.onclick = () => { st.theme = k; onPick(); }; el.appendChild(b); } }
+
+  function slotRow(st, s, roller, rerender) {
+    const row = document.createElement("div"); row.className = "slot";
+    const k = document.createElement("span"); k.className = "k"; k.textContent = s.label;
+    const v = document.createElement("span"); v.className = "v" + (st.slots[s.key].value ? "" : " empty"); v.textContent = st.slots[s.key].value || "—";
+    const rb = document.createElement("button"); rb.className = "b"; rb.textContent = "🎲"; rb.onclick = () => { st.slots[s.key].value = roller(s.key); rerender(); };
+    const lb = document.createElement("button"); lb.className = "b lock" + (st.slots[s.key].locked ? " on" : ""); lb.textContent = st.slots[s.key].locked ? "🔒" : "🔓"; lb.onclick = () => { st.slots[s.key].locked = !st.slots[s.key].locked; rerender(); };
+    row.append(k, v, rb, lb); return row;
+  }
+
+  function renderCos() {
+    chips($("cos-themes"), THEMES, state, () => { for (const s of SLOTS) state.slots[s.key].locked = false; rollAllCos(); });
+    const el = $("cos-slots"); el.innerHTML = "";
+    const t = resolve(THEMES, state);
+    for (const s of SLOTS) el.appendChild(slotRow(state, s, (k) => rollCos(t, k), renderCos));
+    $("cos-cur").textContent = buildCos() || "（空）";
+    save(); syncTags();
+  }
+  function renderAct() {
+    chips($("act-themes"), ATHEMES, astate, () => { for (const s of ASLOTS) astate.slots[s.key].locked = false; rollAllAct(); });
+    const el = $("act-slots"); el.innerHTML = "";
+    const t = resolve(ATHEMES, astate);
+    for (const s of ASLOTS) el.appendChild(slotRow(astate, s, (k) => rollAct(t, k), renderAct));
+    $("act-cur").textContent = buildAct() || "（空）";
+    save(); syncTags();
+  }
+  function rollAllCos() { const t = resolve(THEMES, state); for (const s of SLOTS) if (!state.slots[s.key].locked) state.slots[s.key].value = rollCos(t, s.key); renderCos(); }
+  function rollAllAct() { const t = resolve(ATHEMES, astate); for (const s of ASLOTS) if (!astate.slots[s.key].locked) astate.slots[s.key].value = rollAct(t, s.key); renderAct(); }
+  function syncTags() { $("gen-tags").innerHTML = "👗 " + (buildCos() || "（なし）") + "<br><span style='color:#f9e2af'>🏃 " + (buildAct() || "（なし）") + "</span>"; }
+
+  // ===== タブ =====
+  document.querySelectorAll(".tabbar button").forEach(b => b.onclick = () => {
+    document.querySelectorAll(".tabbar button").forEach(x => x.classList.toggle("active", x === b));
+    document.querySelectorAll(".page").forEach(p => p.classList.toggle("active", p.id === b.dataset.tab));
+  });
+  $("act-free").addEventListener("input", e => { astate.free = e.target.value; $("act-cur").textContent = buildAct() || "（空）"; save(); syncTags(); });
+  $("cos-rollall").onclick = rollAllCos;
+  $("act-rollall").onclick = rollAllAct;
+
+  // ===== 生成 =====
+  let previewList = [], genIdx = 0, busy = false;
+  function extractPositive(p) { for (const n of Object.values(p)) { const t = (n.class_type || "").toLowerCase(), ti = (n._meta && n._meta.title || "").toLowerCase(); if ((t === "cliptextencode" || t === "primitivestringmultiline") && ["positive", "ポジティブ"].some(k => ti.includes(k))) return (n.inputs && (n.inputs.value || n.inputs.text)) || ""; } return ""; }
+  function showAt(i) {
+    if (!previewList.length) { $("gen-counter").textContent = "– / –"; return; }
+    genIdx = Math.max(0, Math.min(i, previewList.length - 1)); const it = previewList[genIdx];
+    const img = $("genimg"); img.onload = null; img.src = it.url; img.style.display = "block"; $("genph").style.display = "none";
+    const b = $("genbadge"); b.textContent = "低解像度プレビュー"; b.style.display = "block";
+    $("gen-counter").textContent = (genIdx + 1) + " / " + previewList.length;
+  }
+  $("gen-prev").onclick = () => { if (genIdx < previewList.length - 1) showAt(genIdx + 1); };
+  $("gen-next").onclick = () => { if (genIdx > 0) showAt(genIdx - 1); };
+
+  async function generate(outfit) {
+    if (!outfit) { toast("タグが空です", false); return; }
+    if (busy) return; busy = true;
+    $("gen-costume").disabled = $("gen-both").disabled = true;
+    const st = m => { $("genph").textContent = m; $("genph").style.display = "flex"; };
+    $("genimg").style.display = "none"; $("genbadge").style.display = "none"; st("⏳ 準備中…");
+    const t0 = performance.now();
+    try {
+      const history = await api("/history"); const keys = Object.keys(history);
+      if (!keys.length) { st("⚠️ 土台にする履歴がありません。本体で1枚生成してください"); toast("履歴なし", false); return; }
+      let baseKey = null;
+      for (let i = keys.length - 1; i >= 0; i--) { const e = history[keys[i]]; if (!e || !e.prompt || !e.prompt[2]) continue; let pv = false; for (const o of Object.values(e.outputs || {})) for (const im of (o.images || [])) if ((im.subfolder || "").startsWith("costume_preview")) pv = true; if (!pv) { baseKey = keys[i]; break; } }
+      if (!baseKey) { st("⚠️ 通常生成が見つかりません"); toast("土台なし", false); return; }
+      const wf = JSON.parse(JSON.stringify(history[baseKey].prompt[2]));
+      const base = ($("gen-prompt").value || "").trim() || DEFAULT_PROMPT;
+      const prompt = base + ", " + outfit;
+      const isText = t => t === "cliptextencode" || t === "primitivestringmultiline";
+      const setText = n => { if (!n.inputs) return; if ("value" in n.inputs) n.inputs.value = prompt; else n.inputs.text = prompt; };
+      let done = false;
+      for (const n of Object.values(wf)) { const ti = (n._meta && n._meta.title || "").toLowerCase(); if (isText((n.class_type || "").toLowerCase()) && ["positive", "ポジティブ"].some(k => ti.includes(k))) { setText(n); done = true; break; } }
+      if (!done) for (const n of Object.values(wf)) { const ti = (n._meta && n._meta.title || "").toLowerCase(); if (isText((n.class_type || "").toLowerCase()) && !["negative", "ネガティブ", "neg"].some(k => ti.includes(k))) { setText(n); done = true; break; } }
+      if (!done) { st("⚠️ プロンプトノードが見つかりません"); toast("非対応WF", false); return; }
+      let genSize = "";
+      for (const n of Object.values(wf)) {
+        const t = (n.class_type || "").toLowerCase();
+        if (t.includes("latent") && n.inputs && typeof n.inputs.width === "number" && typeof n.inputs.height === "number") {
+          if (Math.max(n.inputs.width, n.inputs.height) >= 1024) { n.inputs.width = Math.max(384, Math.round(n.inputs.width * .5 / 8) * 8); n.inputs.height = Math.max(384, Math.round(n.inputs.height * .5 / 8) * 8); }
+          genSize = n.inputs.width + "x" + n.inputs.height;
+        }
+        if (t === "ksampler" && n.inputs) { if ("seed" in n.inputs) n.inputs.seed = Math.floor(Math.random() * 2 ** 32); if (typeof n.inputs.steps === "number") n.inputs.steps = Math.min(n.inputs.steps, 8); }
+        else if (t === "ksampleradvanced" && n.inputs) { if ("noise_seed" in n.inputs) n.inputs.noise_seed = Math.floor(Math.random() * 2 ** 32); else if ("seed" in n.inputs) n.inputs.seed = Math.floor(Math.random() * 2 ** 32); if (typeof n.inputs.steps === "number") { const o = n.inputs.steps; n.inputs.steps = Math.min(o, 8); if (typeof n.inputs.end_at_step === "number" && n.inputs.end_at_step >= o) n.inputs.end_at_step = n.inputs.steps; } }
+        if (n.class_type === "SaveImage" && n.inputs) n.inputs.filename_prefix = "costume_preview/preview";
+      }
+      const q = await api("/prompt", "POST", { prompt: wf, client_id: "gacha_mobile" });
+      const pid = q && q.prompt_id; if (!pid) { st("⚠️ キュー送信失敗"); toast("送信失敗", false); return; }
+      const deadline = performance.now() + 180000; let url = null, err = null;
+      while (performance.now() < deadline && !url && !err) {
+        await new Promise(r => setTimeout(r, 500));
+        st("⏳ 生成中… " + ((performance.now() - t0) / 1000).toFixed(0) + "s");
+        const d = await api("/history/" + pid); const e = d && d[pid]; if (!e) continue;
+        if (e.status && e.status.status_str === "error") { err = "ComfyUI側エラー"; break; }
+        for (const o of Object.values(e.outputs || {})) { for (const im of (o.images || [])) { url = location.origin + "/api/view?filename=" + encodeURIComponent(im.filename) + "&subfolder=" + encodeURIComponent(im.subfolder || "") + "&type=" + (im.type || "output"); break; } if (url) break; }
+      }
+      if (err) { st("⚠️ " + err); toast(err, false); return; }
+      if (!url) { st("⚠️ タイムアウト"); toast("タイムアウト", false); return; }
+      const img = $("genimg"); img.onload = () => { $("genph").style.display = "none"; img.style.display = "block"; const b = $("genbadge"); b.textContent = "低解像度プレビュー"; b.style.display = "block"; previewList.unshift({ url, prompt, cos: snap(state, SLOTS), act: snap(astate, ASLOTS) }); genIdx = 0; $("gen-counter").textContent = "1 / " + previewList.length; $("status").textContent = (genSize ? genSize + " / " : "") + ((performance.now() - t0) / 1000).toFixed(1) + "s ・ 画像タップで全画面"; };
+      img.onerror = () => { st("⚠️ 画像読込失敗"); }; img.src = url;
+    } catch (e) { st("⚠️ 失敗: " + (e.message || e)); toast("失敗: " + (e.message || e), false); }
+    finally { $("gen-costume").disabled = $("gen-both").disabled = false; busy = false; }
+  }
+  $("gen-costume").onclick = () => generate(buildCos());
+  $("gen-both").onclick = () => generate(buildBoth());
+  $("genimg").addEventListener("click", () => { const s = $("genimg").getAttribute("src"); if (!s || $("genimg").style.display === "none") return; $("fsimg").src = s; $("fs").style.display = "flex"; });
+  $("fs").addEventListener("click", () => { $("fs").style.display = "none"; });
+
+  // ===== お取り置き（localStorage）=====
+  let reserved = [];
+  function loadReserved() { try { reserved = JSON.parse(localStorage.getItem("gacha_reserved") || "[]"); } catch (e) { reserved = []; } renderReserve(); }
+  function saveReserved() { try { localStorage.setItem("gacha_reserved", JSON.stringify(reserved)); } catch (e) {} pushReserved(); }
+  async function pushReserved() { try { await fetch(BASE + "/gacha/reserved", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(reserved) }); } catch (e) {} } // PC版に流し込むためサーバー共有
+  function renderReserve() {
+    const el = $("reserve"); if (!reserved.length) { el.innerHTML = '<div class="rempty">⭐で気に入った生成を取り置き</div>'; return; }
+    el.innerHTML = "";
+    reserved.forEach((it, i) => {
+      const c = document.createElement("div"); c.className = "rcell";
+      const img = document.createElement("img"); img.loading = "lazy"; img.src = it.url; c.appendChild(img);
+      const rm = document.createElement("div"); rm.className = "rm"; rm.textContent = "×"; rm.onclick = ev => { ev.stopPropagation(); reserved.splice(i, 1); saveReserved(); renderReserve(); }; c.appendChild(rm);
+      c.onclick = () => { $("fsimg").src = it.url; $("fs").style.display = "flex"; }; // タップで全画面表示（拡大加工はPCの仕上げ画面で）
+      el.appendChild(c);
+    });
+  }
+  $("gen-reserve").onclick = () => { const it = previewList[genIdx]; if (!it) { toast("取り置く画像がありません", false); return; } if (reserved.some(r => r.url === it.url)) { toast("取り置き済み", false); return; } reserved.unshift({ url: it.url, prompt: it.prompt, cos: it.cos, act: it.act, hires: false }); saveReserved(); renderReserve(); toast("⭐ 取り置き（PCにも共有）"); };
+  $("gen-dl").onclick = async () => {
+    const it = previewList[genIdx]; if (!it) { toast("保存する画像がありません", false); return; }
+    try { const b = await (await fetch(it.url)).blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = "costume_" + Date.now() + ".png"; document.body.appendChild(a); a.click(); a.remove(); toast("💾 保存しました"); } catch (e) { toast("保存失敗: " + (e.message || e), false); }
+  };
+
+  // ===== 起動 =====
+  (function init() {
+    try { const c = JSON.parse(localStorage.getItem("gacha_cos") || "null"); if (c && c.slots) { if (THEMES[c.theme]) state.theme = c.theme; for (const s of SLOTS) if (c.slots[s.key]) state.slots[s.key] = { value: c.slots[s.key].value || "", locked: !!c.slots[s.key].locked }; } } catch (e) {}
+    try { const a = JSON.parse(localStorage.getItem("gacha_act") || "null"); if (a && a.slots) { if (ATHEMES[a.theme]) astate.theme = a.theme; astate.free = a.free || ""; for (const s of ASLOTS) if (a.slots[s.key]) astate.slots[s.key] = { value: a.slots[s.key].value || "", locked: !!a.slots[s.key].locked }; } } catch (e) {}
+    $("act-free").value = astate.free || "";
+    $("gen-prompt").value = localStorage.getItem("gacha_prompt") || DEFAULT_PROMPT;
+    $("gen-prompt").addEventListener("change", () => localStorage.setItem("gacha_prompt", $("gen-prompt").value.trim()));
+    if (!buildCos()) rollAllCos(); else renderCos();
+    if (!buildAct()) rollAllAct(); else renderAct();
+    loadReserved(); syncTags();
+  })();
+  </script>
+</body>
+</html>
