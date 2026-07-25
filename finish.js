@@ -42,6 +42,8 @@ function extractOutfitBySlot(promptText) {
 // ===== お取り置き（衣装画面と共有ストレージ）＝ここでは選ぶだけ =====
 let reservedList = []; // { url, prompt, cos, act, hires }
 let currentSel = null;
+let afterList = []; // 高解像度化(使用後)の履歴 { url, cap }（新しい順）
+let afterIndex = 0;
 function loadReserved(cb) {
   chrome.storage.local.get("costume_reserved", (d) => {
     let list = (d && Array.isArray(d.costume_reserved)) ? d.costume_reserved : null;
@@ -60,7 +62,8 @@ function tagsOf(sel) {
 function renderCurTags() {
   const el = document.getElementById("cur-tags");
   if (!el) return;
-  if (!currentSel) { el.textContent = "右の「お取り置き」から画像を選んでください"; el.style.color = "#a6e3a1"; return; }
+  if (!currentSel) { el.textContent = "右の「お取り置き」から選ぶ、または画像をドロップ"; el.style.color = "#a6e3a1"; return; }
+  if (currentSel.external) { el.textContent = "📎 外部画像（タグなし）。denoiseは低め(0.3〜0.4)が元絵に忠実です"; el.style.color = "#a6adc8"; return; }
   const { cos, act } = tagsOf(currentSel);
   el.innerHTML = "";
   const c1 = document.createElement("div"); c1.textContent = "👗 " + (cos || "（衣装なし）");
@@ -91,12 +94,53 @@ function selectReserved(it) {
   if (it.hires) { bb.textContent = "🖼 高解像度"; bb.className = "big-badge hi"; }
   else { bb.textContent = "⚠ 低解像度（拡大推奨）"; bb.className = "big-badge low"; }
   bb.style.display = "block";
-  // 使用後はリセット
-  const aImg = document.getElementById("after-img"); aImg.style.display = "none"; aImg.removeAttribute("src");
-  document.getElementById("after-ph").style.display = "flex";
-  document.getElementById("after-cap").textContent = "";
+  // 使用後の履歴はそのまま維持（◀▶で見返せる）
   renderCurTags();
   renderPicker();
+}
+
+// ===== 使用後（高解像度化）の履歴表示 =====
+function updateAfterNav() {
+  const nav = document.getElementById("after-nav");
+  const counter = document.getElementById("after-counter");
+  if (!afterList.length) { if (nav) nav.style.display = "none"; return; }
+  if (nav) nav.style.display = "flex";
+  if (counter) counter.textContent = `${afterIndex + 1} / ${afterList.length}`;
+}
+function showAfterAt(i) {
+  if (!afterList.length) { updateAfterNav(); return; }
+  afterIndex = Math.max(0, Math.min(i, afterList.length - 1));
+  const it = afterList[afterIndex];
+  const img = document.getElementById("after-img");
+  const ph = document.getElementById("after-ph");
+  const cap = document.getElementById("after-cap");
+  const spin = document.getElementById("after-spin");
+  img.onload = null; img.onerror = null;
+  spin.style.display = "none"; ph.style.display = "none";
+  img.src = it.url; img.style.display = "block";
+  cap.textContent = it.cap || "🖼 高解像度化済み";
+  updateAfterNav();
+}
+// サーバー保存済みの高解像度画像(costume_preview/upscaled/)を履歴に読み込む
+async function loadUpscaledHistory() {
+  try {
+    const history = await bgFetch(`${COMFYUI_BASE}/history`);
+    const list = [];
+    for (const pid of Object.keys(history)) {
+      const entry = history[pid];
+      for (const out of Object.values(entry.outputs || {})) {
+        for (const im of (out.images || [])) {
+          if ((im.type || "output") !== "output") continue;
+          if (!(im.subfolder || "").includes("upscaled")) continue;
+          const url = `${COMFYUI_BASE}/api/view?filename=${encodeURIComponent(im.filename)}&subfolder=${encodeURIComponent(im.subfolder || "")}&type=output`;
+          list.push({ url });
+        }
+      }
+    }
+    list.reverse(); // 新しい順
+    afterList = list;
+    if (afterList.length) showAfterAt(0); else updateAfterNav();
+  } catch (e) { console.warn("[仕上げ] 高解像度履歴の取得に失敗:", e); }
 }
 
 // ===== 画像の保存先フォルダ（control/衣装画面と共有）=====
@@ -156,7 +200,7 @@ async function downloadAfter() {
 // ===== I2I：選択中の取り置き画像を 944×2048 へ高解像度化（img2img）=====
 let busy = false;
 async function upscaleI2I() {
-  if (!currentSel) { toast("先に右のお取り置きから画像を選んでください", "#f9e2af"); return; }
+  if (!currentSel) { toast("先に取り置きを選ぶか、画像をドロップしてください", "#f9e2af"); return; }
   if (busy) return;
   busy = true;
   const TARGET_W = 944, TARGET_H = 2048;
@@ -260,7 +304,11 @@ async function upscaleI2I() {
     aImg.onload = () => {
       spin.style.display = "none"; aPh.style.display = "none";
       aImg.style.display = "block";
-      aCap.textContent = `${TARGET_W}x${TARGET_H} / denoise ${denoise} / ${((performance.now() - t0) / 1000).toFixed(1)}s`;
+      const capText = `${TARGET_W}x${TARGET_H} / denoise ${denoise} / ${((performance.now() - t0) / 1000).toFixed(1)}s`;
+      aCap.textContent = capText;
+      afterList.unshift({ url, cap: capText }); // 履歴に追加（新しい順）
+      afterIndex = 0;
+      updateAfterNav();
     };
     aImg.onerror = () => showErr("画像の読み込みに失敗: " + url);
     aImg.src = url;
@@ -279,7 +327,47 @@ document.getElementById("cos-set-savedir").addEventListener("click", chooseSaveD
 (() => { const d = document.getElementById("i2i-denoise"); const v = document.getElementById("i2i-denoise-val");
   if (d && v) d.addEventListener("input", () => { v.textContent = parseFloat(d.value).toFixed(2); }); })();
 document.getElementById("open-costume").addEventListener("click", () => { chrome.runtime.sendMessage({ type: "OPEN_PAGE", page: "costume.html" }); });
+document.getElementById("after-prev").addEventListener("click", () => { if (afterIndex < afterList.length - 1) showAfterAt(afterIndex + 1); }); // 古い方へ
+document.getElementById("after-next").addEventListener("click", () => { if (afterIndex > 0) showAfterAt(afterIndex - 1); }); // 新しい方へ
 document.getElementById("refresh-tags").addEventListener("click", () => { loadReserved(() => { renderPicker(); toast("🔄 お取り置きを再読込しました"); }); });
+
+// ===== 外部画像のドラッグ&ドロップ／貼り付け（使用前に読み込んでI2I可能に）=====
+function useExternalImage(fileOrUrl, isUrl) {
+  let url;
+  if (isUrl) { url = fileOrUrl; }
+  else {
+    if (!fileOrUrl || !fileOrUrl.type || !fileOrUrl.type.startsWith("image/")) { toast("画像ファイルをドロップしてください", "#f9e2af"); return; }
+    url = URL.createObjectURL(fileOrUrl);
+  }
+  currentSel = { url, prompt: DEFAULT_GEN_PROMPT, hires: false, external: true };
+  const bImg = document.getElementById("before-img");
+  const bPh = document.getElementById("before-ph");
+  bImg.onload = null; bImg.onerror = () => toast("画像を読み込めませんでした", "#f38ba8");
+  bImg.src = url; bImg.style.display = "block"; bPh.style.display = "none";
+  const bb = document.getElementById("before-badge");
+  bb.textContent = "📎 外部画像"; bb.className = "big-badge low"; bb.style.display = "block";
+  renderCurTags();
+  renderPicker();
+  toast("📎 外部画像を読み込みました（⤴ で高解像度化）");
+}
+document.addEventListener("dragover", (e) => {
+  e.preventDefault(); if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+  const box = document.getElementById("before-box"); if (box) box.style.outline = "2px dashed #a6e3a1";
+});
+document.addEventListener("dragleave", (e) => { if (!e.relatedTarget) { const box = document.getElementById("before-box"); if (box) box.style.outline = ""; } });
+document.addEventListener("drop", (e) => {
+  e.preventDefault();
+  const box = document.getElementById("before-box"); if (box) box.style.outline = "";
+  const f = [...(e.dataTransfer && e.dataTransfer.files || [])].find(x => x.type && x.type.startsWith("image/"));
+  if (f) { useExternalImage(f, false); return; }
+  const url = (e.dataTransfer && (e.dataTransfer.getData("text/uri-list") || e.dataTransfer.getData("text/plain")) || "").trim();
+  if (url && /^(https?:|data:|blob:)/.test(url)) useExternalImage(url, true);
+});
+window.addEventListener("paste", (e) => {
+  for (const it of (e.clipboardData && e.clipboardData.items || [])) {
+    if (it.type && it.type.startsWith("image/")) { useExternalImage(it.getAsFile(), false); break; }
+  }
+});
 
 // 衣装画面での取り置き変更をリアルタイム反映
 chrome.storage.onChanged.addListener((changes, area) => {
@@ -289,6 +377,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 // ===== 起動 =====
 (function init() {
   loadReserved(() => { renderPicker(); renderCurTags(); });
+  comfyBaseReady.then(loadUpscaledHistory); // 高解像度化の履歴を復元
   (async () => {
     try {
       const h = await dlIdbGet("saveDir");
