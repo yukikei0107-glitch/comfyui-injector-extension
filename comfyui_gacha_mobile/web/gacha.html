@@ -21,7 +21,10 @@
   .btn { width: 100%; padding: 13px; border: none; border-radius: 9px; font-size: 14px; font-weight: bold; color: #1e1e2e; margin-top: 8px; }
   .btn.roll { background: #f9e2af; }
   .btn.gen { background: #a6e3a1; }
+  .btn.ai { background: #a6a1de; }
   .btn.sec { background: #45475a; color: #cdd6f4; }
+  .rowbtn { display: flex; gap: 6px; }
+  .rowbtn .btn { flex: 1; }
   .btn:disabled { opacity: .5; }
   input[type=text] { width: 100%; background: #2a2a3e; color: #cdd6f4; border: 1px solid #45475a; border-radius: 8px; padding: 11px; font-size: 14px; margin-top: 6px; }
   .slot { display: flex; align-items: center; gap: 8px; background: #2a2a3e; border: 1px solid #313244; border-radius: 8px; padding: 8px 10px; margin-top: 5px; }
@@ -55,7 +58,8 @@
   <div class="page active" id="pg-cos">
     <div class="lbl">テーマ</div>
     <div class="themes" id="cos-themes"></div>
-    <button class="btn roll" id="cos-rollall">🎲 衣装を全部振る</button>
+    <input type="text" id="cos-vibe" placeholder="雰囲気(任意・AIヒント) 例: 秋っぽい / セクシー">
+    <div class="rowbtn"><button class="btn roll" id="cos-rollall">🎲 全部振る</button><button class="btn ai" id="cos-ai">🤖 AIで考える</button></div>
     <div class="lbl">パーツ（🎲振り直し / 🔒固定）</div>
     <div id="cos-slots"></div>
     <div class="lbl">現在の衣装</div>
@@ -66,9 +70,14 @@
   <div class="page" id="pg-act">
     <div class="lbl">テーマ</div>
     <div class="themes" id="act-themes"></div>
-    <button class="btn roll" id="act-rollall">🎲 動作を全部振る</button>
+    <div class="rowbtn"><button class="btn roll" id="act-rollall">🎲 全部振る</button><button class="btn ai" id="act-ai">🤖 AIで考える</button></div>
     <div class="lbl">動作パーツ（🎲 / 🔒）</div>
     <div id="act-slots"></div>
+    <div class="lbl">背景ワード（言葉→AIで背景スロットへ）</div>
+    <div style="display:flex;gap:6px;align-items:center;">
+      <input type="text" id="act-bg-word" placeholder="例: 桜 / 星空 / 教室 / 夕焼け" style="flex:1;min-width:0;">
+      <button class="btn ai" id="act-bg-make" style="flex:0 0 auto;width:auto;margin-top:0;padding:12px 16px;white-space:nowrap;">🪄 反映</button>
+    </div>
     <div class="lbl">自由入力（動作に追記）</div>
     <input type="text" id="act-free" placeholder="例: looking back, from behind">
     <div class="lbl">現在の動作</div>
@@ -97,9 +106,12 @@
       <button class="btn sec" id="gen-reserve" style="margin:0;">⭐ 取り置き</button>
       <button class="btn sec" id="gen-dl" style="margin:0;">💾 保存</button>
     </div>
-    <div class="lbl">お取り置き（タップで衣装読込）</div>
+    <div class="lbl">お取り置き（タップで全画面表示）</div>
     <div class="reserve" id="reserve"></div>
     <div class="tiny" id="status"></div>
+    <div class="lbl">🤖 AI用 LM Studio URL（空欄=ComfyUIと同じPC）</div>
+    <input type="text" id="lm-url" placeholder="例: http://100.64.162.109:1234">
+    <div class="tiny">別PCのLM Studioを使う場合はそのIP:1234を入力。LM Studioは「Serve on Local Network」ON＋モデル読込が必要。</div>
   </div>
 
   <div class="tabbar">
@@ -185,6 +197,63 @@
   $("cos-rollall").onclick = rollAllCos;
   $("act-rollall").onclick = rollAllAct;
 
+  // ===== AI提案（ComfyUI経由でLM Studioに中継）=====
+  const JP = /[぀-ヿ㐀-鿿＀-￯]/;
+  async function llm(system, prompt, maxTokens) {
+    const lmurl = (localStorage.getItem("gacha_lmurl") || "").trim();
+    const r = await fetch(BASE + "/gacha/llm", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ system, prompt, temperature: 0.9, max_tokens: maxTokens || 400, lmstudio_url: lmurl }) });
+    const d = await r.json();
+    if (!d || !d.ok || !d.text) throw new Error((d && d.error) || "応答なし");
+    let raw = d.text.replace(/<think>[\s\S]*?<\/think>/gi, ""); if (/<\/think>/i.test(raw)) raw = raw.split(/<\/think>/i).pop();
+    return raw;
+  }
+  function applyLLM(raw, st, keys) {
+    for (const s of keys) {
+      if (st.slots[s.key].locked) continue;
+      const m = raw.match(new RegExp("^\\s*" + s.key + "\\s*[:：]\\s*(.+)$", "im"));
+      if (!m) continue;
+      let v = m[1].trim().replace(/^["'`]+|["'`]+$/g, "").trim();
+      if (/^(none|なし|n\/a|-)$/i.test(v)) v = "";
+      v = v.split(",").map(x => x.trim()).filter(x => x && !JP.test(x)).join(", ");
+      if (s.key === "background" && v && !v.includes(":")) v = "(" + v + ":1.3)";
+      st.slots[s.key].value = v;
+    }
+  }
+  $("cos-ai").onclick = async () => {
+    const t = THEMES[state.theme]; const label = t ? t.label.replace(/^[🎲⭐]\s*/, "") : "any";
+    const vibe = ($("cos-vibe").value || "").trim();
+    const btn = $("cos-ai"); btn.disabled = true; btn.textContent = "考え中...";
+    try {
+      const raw = await llm("You are an outfit stylist for anime image-generation prompts. Propose ONE coherent, creative outfit for a single girl. Theme: " + label + ". Vibe: " + (vibe || "any") + ".\nOutput EXACTLY these labeled lines and nothing else. Each value is lowercase Danbooru-style comma-separated tags, or 'none':\nmain: <top and bottom, or a dress>\nlegwear: <socks/tights or none>\nshoes: <footwear>\nouterwear: <jacket/coat or none>\nhead: <headwear/hair accessory or none>\naccessory: <accessory or none>\ncolor: <overall color palette as a danbooru theme tag, or none>\nNo explanations, no extra lines.", "Theme: " + label + (vibe ? " / Vibe: " + vibe : ""), 400);
+      applyLLM(raw, state, SLOTS); renderCos(); toast("🤖 AIが衣装を提案");
+    } catch (e) { toast("AI失敗: " + (e.message || e) + "（LM Studio起動＆モデル読込済み？）", false); }
+    finally { btn.disabled = false; btn.textContent = "🤖 AIで考える"; }
+  };
+  $("act-ai").onclick = async () => {
+    const t = ATHEMES[astate.theme]; const label = t ? t.label.replace(/^[🎲⭐]\s*/, "") : "any";
+    const btn = $("act-ai"); btn.disabled = true; btn.textContent = "考え中...";
+    try {
+      const raw = await llm("You are a posing director for anime image-generation prompts. Propose ONE coherent pose/action for a single adult girl. Theme/mood: " + label + ".\nOutput EXACTLY these labeled lines and nothing else. Each value is lowercase Danbooru-style comma-separated tags, or 'none':\npose: <body pose>\nexpression: <face expression>\nhands: <hand or arm gesture>\ncamera: <camera angle or gaze>\nbackground: <a visible pattern background>\nNo explanations, no extra lines.", "Theme/mood: " + label, 300);
+      applyLLM(raw, astate, ASLOTS); renderAct(); toast("🤖 AIが動作を提案");
+    } catch (e) { toast("AI失敗: " + (e.message || e), false); }
+    finally { btn.disabled = false; btn.textContent = "🤖 AIで考える"; }
+  };
+  $("act-bg-make").onclick = async () => {
+    const word = ($("act-bg-word").value || "").trim();
+    if (!word) { toast("背景ワードを入力してください", false); return; }
+    const btn = $("act-bg-make"); btn.disabled = true; btn.textContent = "…";
+    try {
+      const raw = await llm("You convert a short user idea (may be Japanese) into a SIMPLE anime image background. Output ONLY 1-4 lowercase english Danbooru-style background tags, comma-separated, no explanation, no quotes, no other lines. Keep it simple (pattern, sky, room, nature, cityscape), not a full detailed scene. Examples: 'さくら' -> 'cherry blossoms, pink background'; '星空' -> 'night sky, starry sky'; '教室' -> 'classroom, indoors'.", word, 120);
+      let line = raw.split("\n").map(s => s.trim()).filter(Boolean)[0] || "";
+      line = line.replace(/^["'`]+|["'`]+$/g, "").replace(/^background\s*[:：]\s*/i, "").trim();
+      const tags = line.split(",").map(t => t.trim()).filter(t => t && !JP.test(t));
+      if (!tags.length) { toast("背景タグを作れませんでした", false); return; }
+      let v = tags.join(", "); if (!v.includes(":")) v = "(" + v + ":1.3)";
+      astate.slots.background.value = v; renderAct(); toast("🪄 背景に反映しました");
+    } catch (e) { toast("AI失敗: " + (e.message || e), false); }
+    finally { btn.disabled = false; btn.textContent = "🪄 反映"; }
+  };
+
   // ===== 生成 =====
   let previewList = [], genIdx = 0, busy = false;
   function extractPositive(p) { for (const n of Object.values(p)) { const t = (n.class_type || "").toLowerCase(), ti = (n._meta && n._meta.title || "").toLowerCase(); if ((t === "cliptextencode" || t === "primitivestringmultiline") && ["positive", "ポジティブ"].some(k => ti.includes(k))) return (n.inputs && (n.inputs.value || n.inputs.text)) || ""; } return ""; }
@@ -194,6 +263,28 @@
     const img = $("genimg"); img.onload = null; img.src = it.url; img.style.display = "block"; $("genph").style.display = "none";
     const b = $("genbadge"); b.textContent = "低解像度プレビュー"; b.style.display = "block";
     $("gen-counter").textContent = (genIdx + 1) + " / " + previewList.length;
+  }
+  // 過去の生成プレビュー(costume_preview/)をサーバー履歴から読み込み、◀▶で見返せるようにする
+  async function loadPreviewHistory() {
+    try {
+      const history = await api("/history");
+      const list = [];
+      for (const pid of Object.keys(history)) {
+        const e = history[pid];
+        const pobj = e.prompt && e.prompt[2];
+        const ptext = pobj ? extractPositive(pobj) : "";
+        for (const o of Object.values(e.outputs || {})) {
+          for (const im of (o.images || [])) {
+            if ((im.type || "output") !== "output") continue;
+            if (!(im.subfolder || "").startsWith("costume_preview")) continue;
+            list.push({ url: location.origin + "/api/view?filename=" + encodeURIComponent(im.filename) + "&subfolder=" + encodeURIComponent(im.subfolder || "") + "&type=output", prompt: ptext });
+          }
+        }
+      }
+      list.reverse(); // 新しい順
+      previewList = list;
+      if (previewList.length) showAt(0); else $("gen-counter").textContent = "– / –";
+    } catch (e) {}
   }
   $("gen-prev").onclick = () => { if (genIdx < previewList.length - 1) showAt(genIdx + 1); };
   $("gen-next").onclick = () => { if (genIdx > 0) showAt(genIdx - 1); };
@@ -282,9 +373,12 @@
     $("act-free").value = astate.free || "";
     $("gen-prompt").value = localStorage.getItem("gacha_prompt") || DEFAULT_PROMPT;
     $("gen-prompt").addEventListener("change", () => localStorage.setItem("gacha_prompt", $("gen-prompt").value.trim()));
+    $("lm-url").value = localStorage.getItem("gacha_lmurl") || "";
+    $("lm-url").addEventListener("change", () => localStorage.setItem("gacha_lmurl", $("lm-url").value.trim()));
     if (!buildCos()) rollAllCos(); else renderCos();
     if (!buildAct()) rollAllAct(); else renderAct();
     loadReserved(); syncTags();
+    loadPreviewHistory(); // 過去の生成を◀▶で見返せるように
   })();
   </script>
 </body>
